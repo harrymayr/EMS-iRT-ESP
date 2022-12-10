@@ -72,6 +72,8 @@ bool     EMSESP::force_scan_               = false;
 // for a specific EMS device go and request data values
 // or if device_id is 0 it will fetch from all our known and active devices
 void EMSESP::fetch_device_values(const uint8_t device_id) {
+    if (EMSbus::tx_mode() == EMS_TXMODE_IRT_PASSIVE)
+        return;
     for (const auto & emsdevice : emsdevices) {
         if (emsdevice) {
             if ((device_id == 0) || emsdevice->is_device_id(device_id)) {
@@ -170,10 +172,12 @@ void EMSESP::init_tx() {
 #endif
     });
 
-    txservice_.start(); // sends out request to EMS bus for all devices
 
+    if (tx_mode <= 4) {
+      txservice_.start(); // sends out request to EMS bus for all devices
+    }
     // force a fetch for all new values, unless Tx is set to off
-    if (tx_mode != 0) {
+    if ((tx_mode != 0) && (tx_mode != EMS_TXMODE_IRT_PASSIVE)) {
         EMSESP::fetch_device_values();
     }
 }
@@ -189,7 +193,10 @@ uint8_t EMSESP::bus_status() {
 
     // nothing sent successfully, also no errors - must be ok
     if ((total_sent == 0) && (txservice_.telegram_fail_count() == 0)) {
-        return BUS_STATUS_CONNECTED;
+        if (EMSbus::tx_mode() <= EMS_TXMODE_HW)
+            return BUS_STATUS_EMS_CONNECTED;
+        else
+            return BUS_STATUS_IRT_CONNECTED;
     }
 
     // nothing sent successfully, but have Tx errors
@@ -202,7 +209,10 @@ uint8_t EMSESP::bus_status() {
         return BUS_STATUS_TX_ERRORS;
     }
 
-    return BUS_STATUS_CONNECTED;
+    if (EMSbus::tx_mode() <= EMS_TXMODE_HW)
+        return BUS_STATUS_EMS_CONNECTED;
+    else
+        return BUS_STATUS_IRT_CONNECTED;
 }
 
 // show the EMS bus status plus both Rx and Tx queues
@@ -210,14 +220,24 @@ void EMSESP::show_ems(uuid::console::Shell & shell) {
     // EMS bus information
     switch (bus_status()) {
     case BUS_STATUS_OFFLINE:
-        shell.printfln(F("EMS Bus is disconnected."));
+        if (EMSbus::tx_mode() <= EMS_TXMODE_HW)
+            shell.printfln(F("EMS Bus is disconnected."));
+        else
+            shell.printfln(F("iRT Bus is disconnected."));
         break;
     case BUS_STATUS_TX_ERRORS:
-        shell.printfln(F("EMS Bus is connected, but Tx is not stable."));
+        if (EMSbus::tx_mode() <= EMS_TXMODE_HW)
+            shell.printfln(F("EMS Bus is connected, but Tx is not stable."));
+        else
+            shell.printfln(F("iRT Bus is connected, but Tx is not stable."));
         break;
-    case BUS_STATUS_CONNECTED:
+    case BUS_STATUS_EMS_CONNECTED:
+    case BUS_STATUS_IRT_CONNECTED:
     default:
-        shell.printfln(F("EMS Bus is connected."));
+        if (EMSbus::tx_mode() <= EMS_TXMODE_HW)
+            shell.printfln(F("EMS Bus is connected."));
+        else
+            shell.printfln(F("iRT Bus is connected."));
         break;
     }
 
@@ -226,7 +246,10 @@ void EMSESP::show_ems(uuid::console::Shell & shell) {
     if (bus_status() != BUS_STATUS_OFFLINE) {
         shell.printfln(F("EMS Bus info:"));
         EMSESP::webSettingsService.read([&](WebSettings & settings) { shell.printfln(F("  Tx mode: %d"), settings.tx_mode); });
-        shell.printfln(F("  Bus protocol: %s"), EMSbus::is_ht3() ? F("HT3") : F("Buderus"));
+        if (EMSbus::tx_mode() <= EMS_TXMODE_HW)
+            shell.printfln(F("  Bus protocol: %s"), EMSbus::is_ht3() ? F("HT3") : F("Buderus"));
+        else
+            shell.printfln(F("  Bus protocol: iRT"));
         shell.printfln(F("  #telegrams received: %d"), rxservice_.telegram_count());
         shell.printfln(F("  #read requests sent: %d"), txservice_.telegram_read_count());
         shell.printfln(F("  #write requests sent: %d"), txservice_.telegram_write_count());
@@ -338,6 +361,7 @@ void EMSESP::publish_all(bool force) {
         publish_other_values();
         publish_sensor_values(true, false);
         system_.send_heartbeat();
+        LOG_DEBUG(F("Heartbeat in publish_all()"));        
     }
 }
 
@@ -373,6 +397,7 @@ void EMSESP::publish_all_loop() {
         break;
     case 7:
         system_.send_heartbeat();
+        LOG_DEBUG(F("Heartbeat in publish_all_loop()"));        
         break;
     default:
         // all finished
@@ -385,8 +410,8 @@ void EMSESP::publish_all_loop() {
 // special case for Mixer units, since we want to bundle all devices together into one payload
 void EMSESP::publish_device_values(uint8_t device_type, bool force) {
     if (device_type == EMSdevice::DeviceType::MIXER && Mqtt::mqtt_format() != Mqtt::Format::SINGLE) {
-        // DynamicJsonDocument doc(EMSESP_MAX_JSON_SIZE_LARGE);
-        StaticJsonDocument<EMSESP_MAX_JSON_SIZE_LARGE> doc;
+        DynamicJsonDocument doc(EMSESP_MAX_JSON_SIZE_LARGE);
+        // StaticJsonDocument<EMSESP_MAX_JSON_SIZE_LARGE> doc;
         JsonObject                                     json = doc.to<JsonObject>();
         for (const auto & emsdevice : emsdevices) {
             if (emsdevice && (emsdevice->device_type() == device_type)) {
@@ -429,7 +454,8 @@ void EMSESP::publish_response(std::shared_ptr<const Telegram> telegram) {
         return;
     }
 
-    StaticJsonDocument<EMSESP_MAX_JSON_SIZE_SMALL> doc;
+    //StaticJsonDocument<EMSESP_MAX_JSON_SIZE_SMALL> doc;
+    DynamicJsonDocument doc(EMSESP_MAX_JSON_SIZE_SMALL);
 
     char buffer[100];
     doc["src"]    = Helpers::hextoa(buffer, telegram->src);
@@ -630,6 +656,7 @@ void EMSESP::process_version(std::shared_ptr<const Telegram> telegram) {
 // returns false if there are none found
 bool EMSESP::process_telegram(std::shared_ptr<const Telegram> telegram) {
     // if watching or reading...
+    //LOG_DEBUG(F("Process telegram ID 0x%02X (src 0x%02X, dest 0x%02X) readID 0x%02X"), telegram->type_id, telegram->src, telegram->dest, read_id_);
     if ((telegram->type_id == read_id_) && (telegram->dest == txservice_.ems_bus_id())) {
         LOG_NOTICE(pretty_telegram(telegram).c_str());
         publish_response(telegram);
@@ -655,16 +682,21 @@ bool EMSESP::process_telegram(std::shared_ptr<const Telegram> telegram) {
 
     // remember if we first get scan results from UBADevices
     static bool first_scan_done_ = false;
+    // iRT don't report version
+    if (EMSESP::rxservice_.tx_mode() >= EMS_TXMODE_IRT_PASSIVE) 
+        first_scan_done_ = true;
+    else {
     // check for common types, like the Version(0x02)
-    if (telegram->type_id == EMSdevice::EMS_TYPE_VERSION) {
-        process_version(telegram);
-        return true;
-    } else if (telegram->type_id == EMSdevice::EMS_TYPE_UBADevices) {
-        process_UBADevices(telegram);
-        if (telegram->dest == EMSbus::ems_bus_id()) {
-            first_scan_done_ = true;
+        if (telegram->type_id == EMSdevice::EMS_TYPE_VERSION) {
+            process_version(telegram);
+            return true;
+        } else if (telegram->type_id == EMSdevice::EMS_TYPE_UBADevices) {
+            process_UBADevices(telegram);
+            if (telegram->dest == EMSbus::ems_bus_id()) {
+                first_scan_done_ = true;
+            }
+            return true;
         }
-        return true;
     }
 
     // match device_id and type_id
@@ -674,6 +706,7 @@ bool EMSESP::process_telegram(std::shared_ptr<const Telegram> telegram) {
     bool found       = false;
     bool knowndevice = false;
     for (const auto & emsdevice : emsdevices) {
+//    LOG_DEBUG(F("emsdevice 0x%02X - is_device_id 0x%02X"), emsdevice->device_type(), emsdevice->is_device_id(telegram->src));
         if (emsdevice) {
             if (emsdevice->is_device_id(telegram->src)) {
                 knowndevice = true;
@@ -699,7 +732,7 @@ bool EMSESP::process_telegram(std::shared_ptr<const Telegram> telegram) {
             LOG_NOTICE(pretty_telegram(telegram).c_str());
         }
         if (first_scan_done_ && !knowndevice && (telegram->src != EMSbus::ems_bus_id()) && (telegram->src != 0x0B) && (telegram->src != 0x0C)
-            && (telegram->src != 0x0D)) {
+            && (telegram->src != 0x0D) && (telegram->src != 0x01)) {
             send_read_request(EMSdevice::EMS_TYPE_VERSION, telegram->src);
         }
     }
@@ -776,6 +809,7 @@ bool EMSESP::add_device(const uint8_t device_id, const uint8_t product_id, std::
         return false;
     }
 
+    //LOG_DEBUG(F("Check for already active device ID 0x%02X"), device_id);
     // first check to see if we already have it, if so update the record
     for (const auto & emsdevice : emsdevices) {
         if (emsdevice) {
@@ -800,6 +834,8 @@ bool EMSESP::add_device(const uint8_t device_id, const uint8_t product_id, std::
         }
     }
 
+    //LOG_DEBUG(F("Device ID 0x%02X should be new"), device_id);
+
     // look up the rest of the details using the product_id and create the new device object
     Device_record * device_p = nullptr;
     for (auto & device : device_library_) {
@@ -820,6 +856,7 @@ bool EMSESP::add_device(const uint8_t device_id, const uint8_t product_id, std::
             }
         }
     }
+    //LOG_DEBUG(F("Found device ID 0x%02X in device library"), device_id);
 
     // if we don't recognize the product ID report it and add as a generic device
     if (device_p == nullptr) {
@@ -837,12 +874,14 @@ bool EMSESP::add_device(const uint8_t device_id, const uint8_t product_id, std::
     emsdevices.push_back(EMSFactory::add(device_type, device_id, product_id, version, name, flags, brand));
     emsdevices.back()->unique_id(++unique_id_count_);
 
+    //LOG_DEBUG(F("Fetch device values for device ID 0x%02X"), device_id);
     fetch_device_values(device_id); // go and fetch its data
 
     // add info command, but not for all devices
     if ((device_type == DeviceType::CONNECT) || (device_type == DeviceType::CONTROLLER) || (device_type == DeviceType::GATEWAY)) {
         return true;
     }
+    //LOG_DEBUG(F("Add Command for device ID 0x%02X"), device_id);
 
     Command::add_with_json(device_type, F_(info), [device_type](const char * value, const int8_t id, JsonObject & json) {
         return command_info(device_type, json, id);
@@ -959,6 +998,11 @@ void EMSESP::incoming_telegram(uint8_t * data, const uint8_t length) {
             return;
         }
     }
+    // check for iRT device
+//    LOG_DEBUG(F("tx_mode 0x%02X - value 0x%02X"),EMSESP::rxservice_.tx_mode(),first_value ^ 0x80 ^ rxservice_.ems_mask());
+    if ((EMSESP::rxservice_.tx_mode() >= EMS_TXMODE_IRT_PASSIVE) && (first_value == 0x01)) {
+        EMSbus::last_bus_activity(uuid::get_uptime()); // set the flag indication the EMS bus is active
+    }
     // check for poll
     if (length == 1) {
         static uint64_t delayed_tx_start_ = 0;
@@ -997,6 +1041,10 @@ void EMSESP::incoming_telegram(uint8_t * data, const uint8_t length) {
         LOG_TRACE(F("[UART_DEBUG] Reply after %d ms: %s"), ::millis() - rx_time_, Helpers::data_to_hex(data, length).c_str());
 #endif
         Roomctrl::check((data[1] ^ 0x80 ^ rxservice_.ems_mask()), data); // check if there is a message for the roomcontroller
+
+        if ((EMSESP::rxservice_.tx_mode() >= EMS_TXMODE_IRT_PASSIVE) && (first_value == 0x01)) {
+            EMSbus::last_bus_activity(uuid::get_uptime()); // set the flag indication the EMS bus is active
+        }
 
         rxservice_.add(data, length); // add to RxQueue
     }

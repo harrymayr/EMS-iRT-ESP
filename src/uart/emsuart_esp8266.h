@@ -26,7 +26,10 @@
 
 #define EMSUART_UART 0      // UART 0
 #define EMSUART_CONFIG 0x1C // 8N1 (8 bits, no parity, 1 stop bit)
+#define IRTUART_CONFIG_PASSIVE (0x1C | (1 << UCRXI) ) // 8N1 (8 bits, no stop bits, 1 parity), invert Rxd
+#define IRTUART_CONFIG_ACTIVE  (0x1C | (1 << UCRXI) | (1 << UCTXI)) // 8N1 (8 bits, no stop bits, 1 parity), invert Rxd, Invert TX
 #define EMSUART_BAUD 9600   // uart baud rate for the EMS circuit
+#define IRTUART_BAUD 4800   // uart baud rate for the EMS circuit
 
 #define EMS_MAXBUFFERS 3     // buffers for circular filling to avoid collisions
 #define EMS_MAXBUFFERSIZE 33 // max size of the buffer. EMS packets are max 32 bytes, plus extra for BRK
@@ -38,6 +41,9 @@
 #define EMS_TXMODE_EMSPLUS 2
 #define EMS_TXMODE_HT3 3
 #define EMS_TXMODE_HW 4
+#define EMS_TXMODE_IRT_PASSIVE 5
+#define EMS_TXMODE_IRT_ACTIVE_POLL 6
+#define EMS_TXMODE_IRT_ACTIVE 7
 
 // LEGACY
 #define EMSUART_TX_BIT_TIME 104 // bit time @9600 baud
@@ -57,6 +63,7 @@
 #define EMSUART_TX_WAIT_PLUS (EMSUART_TX_BIT_TIME * 20) // 2080
 #define EMSUART_TX_BRK_PLUS (EMSUART_TX_BIT_TIME * 11)
 
+
 namespace emsesp {
 
 #define EMS_TX_STATUS_ERR 0
@@ -74,7 +81,7 @@ class EMSuart {
 
 
   private:
-    static void ICACHE_RAM_ATTR   emsuart_rx_intr_handler(void * para);
+    static void IRAM_ATTR   emsuart_rx_intr_handler(void * para);
     static void ICACHE_FLASH_ATTR emsuart_recvTask(os_event_t * events);
     static void ICACHE_FLASH_ATTR restart();
 

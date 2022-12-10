@@ -17,7 +17,7 @@ class EMSESPStatusController extends Component<EMSESPStatusControllerProps> {
 
     render() {
         return (
-            <SectionContent title="EMS Status">
+            <SectionContent title="EMS/iRT Status">
                 <RestFormLoader
                     {...this.props}
                     render={formProps => <EMSESPStatusForm {...formProps} />}

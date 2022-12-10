@@ -98,6 +98,7 @@ MAKE_PSTR(1space, " ")
 MAKE_PSTR(2spaces, "  ")
 MAKE_PSTR(kwh, "kWh")
 MAKE_PSTR(wh, "Wh")
+MAKE_PSTR(rssi, "rssi")
 MAKE_PSTR(EMSESP, "EMS-ESP")
 MAKE_PSTR(master_thermostat_fmt, "Master Thermostat Device ID = %s")
 MAKE_PSTR(host_fmt, "Host = %s")
@@ -134,6 +135,24 @@ MAKE_PSTR(new_password_prompt1, "Enter new password: ")
 MAKE_PSTR(new_password_prompt2, "Retype new password: ")
 MAKE_PSTR(password_prompt, "Password: ")
 MAKE_PSTR(unset, "<unset>")
+
+// status
+MAKE_PSTR(wifirssi, "WiFi RSSI")
+MAKE_PSTR(uptime, "Uptime")
+MAKE_PSTR(uptimesec, "Uptime (sec)")
+MAKE_PSTR(mqttfails, "MQTT fails")
+MAKE_PSTR(txwrites, "Tx writes")
+MAKE_PSTR(txreads, "Tx reads")
+MAKE_PSTR(txfails, "Tx fails")
+MAKE_PSTR(rxrec, "Rx received")
+MAKE_PSTR(rxfails, "Rx fails")
+MAKE_PSTR(dallasfails, "Dallas fails")
+MAKE_PSTR(freemem, "Free memory")
+MAKE_PSTR(heapfrag, "Heap fragmentation")
+MAKE_PSTR(maxfreeblock, "Max. free block size")
+MAKE_PSTR(freestack, "Free cont. stack")
+MAKE_PSTR(analog, "Analog input")
+
 
 // boiler
 MAKE_PSTR(heatingActive, "Heating active")
@@ -332,6 +351,10 @@ MAKE_PSTR(iconvalve, "mdi:valve")
 MAKE_PSTR(iconpower, "mdi:power-cycle")
 MAKE_PSTR(iconthermostat, "mdi:home-thermometer-outline")
 MAKE_PSTR(iconpump, "mdi:pump")
+MAKE_PSTR(iconwifi, "mdi:wifi")
+MAKE_PSTR(iconcounter, "mdi:counter")
+MAKE_PSTR(iconlockout, "mdi:clock-outline")
+MAKE_PSTR(iconmemory, "mdi:memory")
 
 
 // MQTT topic suffix

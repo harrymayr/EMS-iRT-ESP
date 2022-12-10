@@ -67,6 +67,7 @@ function EMSESPSettingsControllerForm(props: EMSESPSettingsControllerFormProps) 
                 <MenuItem value={2}>2 - EMS+</MenuItem>
                 <MenuItem value={3}>3 - HT3</MenuItem>
                 <MenuItem value={4}>4 - Hardware</MenuItem>
+                <MenuItem value={5}>5 - iRT passive</MenuItem>
             </SelectValidator>
             <SelectValidator name="ems_bus_id"
                 label="Bus ID"

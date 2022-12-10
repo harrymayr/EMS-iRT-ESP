@@ -211,7 +211,27 @@ class Boiler : public EMSdevice {
     void process_UBAInformation(std::shared_ptr<const Telegram> telegram);
     void process_UBAEnergySupplied(std::shared_ptr<const Telegram> telegram);
     void process_UBASettingsWW(std::shared_ptr<const Telegram> telegram);
-
+//IRT-Bus
+    void process_IRTSetFlowTemp(std::shared_ptr<const Telegram> telegram);  // 0x01
+    void process_IRTSetWeatherControl(std::shared_ptr<const Telegram> telegram);  // 0x04
+    void process_IRTSetWwActivated(std::shared_ptr<const Telegram> telegram);  // 0x05
+    void process_IRTSetBurnerPower(std::shared_ptr<const Telegram> telegram);  // 0x07
+    void process_IRTGetMaxWarmWater(std::shared_ptr<const Telegram> telegram);  // 0x81
+    void process_IRTGetBoilerFlags(std::shared_ptr<const Telegram> telegram);  // 0x82
+    void process_IRTGetActBurnerPower(std::shared_ptr<const Telegram> telegram);  // 0x83
+    void process_IRTGetMaxBurnerPower(std::shared_ptr<const Telegram> telegram);  // 0x86
+    void process_IRTGetOutdoorTemp(std::shared_ptr<const Telegram> telegram);  // 0x8A
+    void process_IRTGetMaxFlowTemp(std::shared_ptr<const Telegram> telegram);  // 0x90
+    void process_IRTGetPumpStatus(std::shared_ptr<const Telegram> telegram);  // 0x93
+    void process_IRTGetDisplayCode(std::shared_ptr<const Telegram> telegram);  // 0xA3
+    void process_IRTGetWwTemp(std::shared_ptr<const Telegram> telegram);  // 0xA4
+    void process_IRTGetRetTemp(std::shared_ptr<const Telegram> telegram);  // 0xA6
+    void process_IRTGetFlowTemp(std::shared_ptr<const Telegram> telegram);  // 0xA8
+    void process_IRTGetBurnerRuntime(std::shared_ptr<const Telegram> telegram);  // 0xAA
+    void process_IRTGetBurnerStarts(std::shared_ptr<const Telegram> telegram);  // 0xAB
+    void process_IRTGetMaxBurnerPowerSetting(std::shared_ptr<const Telegram> telegram);  // 0xDE
+    void process_IRTHandlerUnknownFunktion(std::shared_ptr<const Telegram> telegram);  // unknown funktions
+    
     // commands - none of these use the additional id parameter
     bool set_warmwater_mode(const char * value, const int8_t id);
     bool set_warmwater_activated(const char * value, const int8_t id);

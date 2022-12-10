@@ -57,6 +57,10 @@ std::string EMSdevice::device_type_2_device_name(const uint8_t device_type) {
         return read_flash_string(F_(system));
         break;
 
+    case DeviceType::HEARTBEAT:
+        return read_flash_string(F_(heartbeat));
+        break;
+
     case DeviceType::BOILER:
         return read_flash_string(F_(boiler));
         break;
@@ -317,10 +321,12 @@ std::string EMSdevice::telegram_type_name(std::shared_ptr<const Telegram> telegr
 // take a telegram_type_id and call the matching handler
 // return true if match found
 bool EMSdevice::handle_telegram(std::shared_ptr<const Telegram> telegram) {
+//    EMSESP::logger().debug(F("handle_telegram id (0x%02X)"), telegram->type_id);
     for (const auto & tf : telegram_functions_) {
         if (tf.telegram_type_id_ == telegram->type_id) {
             // if the data block is empty, assume that this telegram is not recognized by the bus master
             // so remove it from the automatic fetch list
+//            EMSESP::logger().debug(F("Checking telegram (%s) length (0x%02X"), Helpers::data_to_hex(telegram->message_data, telegram->message_length).c_str(), telegram->message_length);
             if (telegram->message_length == 0 && telegram->offset == 0) {
                 EMSESP::logger().debug(F("This telegram (%s) is not recognized by the EMS bus"), uuid::read_flash_string(tf.telegram_type_name_).c_str());
                 toggle_fetch(tf.telegram_type_id_, false);

@@ -28,9 +28,11 @@ Heatpump::Heatpump(uint8_t device_type, uint8_t device_id, uint8_t product_id, c
     : EMSdevice(device_type, device_id, product_id, version, name, flags, brand) {
     LOG_DEBUG(F("Adding new Heat Pump module with device ID 0x%02X"), device_id);
 
-    // telegram handlers
-    register_telegram_type(0x042B, F("HP1"), true, [&](std::shared_ptr<const Telegram> t) { process_HPMonitor1(t); });
-    register_telegram_type(0x047B, F("HP2"), true, [&](std::shared_ptr<const Telegram> t) { process_HPMonitor2(t); });
+    if (EMSbus::tx_mode() <= EMS_TXMODE_HW) {
+        // telegram handlers
+        register_telegram_type(0x042B, F("HP1"), true, [&](std::shared_ptr<const Telegram> t) { process_HPMonitor1(t); });
+        register_telegram_type(0x047B, F("HP2"), true, [&](std::shared_ptr<const Telegram> t) { process_HPMonitor2(t); });
+    }
 }
 
 // creates JSON doc from values
@@ -49,7 +51,8 @@ bool Heatpump::export_values(JsonObject & json, int8_t id) {
 
 void Heatpump::device_info_web(JsonArray & root, uint8_t & part) {
     // fetch the values into a JSON document
-    StaticJsonDocument<EMSESP_MAX_JSON_SIZE_SMALL> doc;
+    DynamicJsonDocument doc(EMSESP_MAX_JSON_SIZE_SMALL);
+    //StaticJsonDocument<EMSESP_MAX_JSON_SIZE_SMALL> doc;
     JsonObject                                     json = doc.to<JsonObject>();
     if (!export_values(json)) {
         return; // empty
@@ -69,7 +72,8 @@ void Heatpump::publish_values(JsonObject & json, bool force) {
         }
     }
 
-    StaticJsonDocument<EMSESP_MAX_JSON_SIZE_SMALL> doc;
+    DynamicJsonDocument doc(EMSESP_MAX_JSON_SIZE_SMALL);
+    //StaticJsonDocument<EMSESP_MAX_JSON_SIZE_SMALL> doc;
     JsonObject                                     json_data = doc.to<JsonObject>();
     if (export_values(json_data)) {
         Mqtt::publish(F("heatpump_data"), doc.as<JsonObject>());
@@ -82,25 +86,29 @@ void Heatpump::register_mqtt_ha_config() {
     }
 
     // Create the Master device
-    StaticJsonDocument<EMSESP_MAX_JSON_SIZE_HA_CONFIG> doc;
+    DynamicJsonDocument doc(EMSESP_MAX_JSON_SIZE_HA_CONFIG);
+    //StaticJsonDocument<EMSESP_MAX_JSON_SIZE_HA_CONFIG> doc;
     doc["name"]    = F_(EMSESP);
     doc["uniq_id"] = F_(heatpump);
     doc["ic"]      = F_(iconpump);
 
-    char stat_t[128];
-    snprintf_P(stat_t, sizeof(stat_t), PSTR("%s/heatpump_data"), Mqtt::base().c_str());
-    doc["stat_t"] = stat_t;
+    char temp[128];
+    snprintf_P(temp, sizeof(temp), PSTR("%s/heatpump_data"), Mqtt::base().c_str());
+    doc["stat_t"] = temp;
 
     doc["val_tpl"] = FJSON("{{value_json.airHumidity}}");
 
     JsonObject dev = doc.createNestedObject("dev");
-    dev["name"]    = FJSON("EMS-ESP Heat Pump");
+    snprintf_P(temp, sizeof(temp), PSTR("%s Heat Pump"), Mqtt::base().c_str());
+    dev["name"]    = temp;
     dev["sw"]      = EMSESP_APP_VERSION;
     dev["mf"]      = brand_to_string();
     dev["mdl"]     = this->name();
     JsonArray ids  = dev.createNestedArray("ids");
-    ids.add("ems-esp-heatpump");
-    Mqtt::publish_ha(F("homeassistant/sensor/ems-esp/heatpump/config"), doc.as<JsonObject>()); // publish the config payload with retain flag
+    snprintf_P(temp, sizeof(temp), PSTR("%s-heatpump"), Mqtt::base().c_str());
+    ids.add(temp);
+    snprintf_P(temp, sizeof(temp), PSTR("homeassistant/sensor/%s/heatpump/config"), Mqtt::base().c_str());
+    Mqtt::publish_ha(temp, doc.as<JsonObject>()); // publish the config payload with retain flag
 
     Mqtt::register_mqtt_ha_sensor(nullptr, nullptr, F_(airHumidity), device_type(), "airHumidity", F_(percent), nullptr);
     Mqtt::register_mqtt_ha_sensor(nullptr, nullptr, F_(dewTemperature), device_type(), "dewTemperature", F_(degrees), nullptr);

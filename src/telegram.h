@@ -50,6 +50,7 @@ static constexpr int16_t  EMS_VALUE_SHORT_NOTSET  = 0x7D00;     //  32000: for 2
 static constexpr uint32_t EMS_VALUE_ULONG_NOTSET  = 0x00FFFFFF; // for 3-byte and 4-byte longs
 
 static constexpr uint8_t EMS_MAX_TELEGRAM_LENGTH         = 32; // max length of a complete EMS telegram
+static constexpr uint8_t IRT_MAX_TELEGRAM_LENGTH         = 64; // max length of a complete iRT telegram
 static constexpr uint8_t EMS_MAX_TELEGRAM_MESSAGE_LENGTH = 27; // max length of message block, assuming EMS1.0
 
 namespace emsesp {
@@ -189,7 +190,7 @@ class EMSbus {
     }
 
     static uint8_t calculate_crc(const uint8_t * data, const uint8_t length);
-
+    static uint8_t calculate_irt_crc(const uint8_t * data, const uint8_t length);
   private:
     static constexpr uint32_t EMS_BUS_TIMEOUT = 30000; // timeout in ms before recognizing the ems bus is offline (30 seconds)
 

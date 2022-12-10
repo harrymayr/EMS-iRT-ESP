@@ -357,7 +357,8 @@ void DallasSensor::publish_values(const bool force) {
         // to e.g. homeassistant/sensor/ems-esp/dallas_28-233D-9497-0C03/config
         if (mqtt_format_ == Mqtt::Format::HA) {
             if (!(registered_ha_[sensor_no - 1]) || force) {
-                StaticJsonDocument<EMSESP_MAX_JSON_SIZE_MEDIUM> config;
+                DynamicJsonDocument config(EMSESP_MAX_JSON_SIZE_MEDIUM);
+                //StaticJsonDocument<EMSESP_MAX_JSON_SIZE_MEDIUM> config;
                 config["dev_cla"] = FJSON("temperature");
 
                 char stat_t[128];

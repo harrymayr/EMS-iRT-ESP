@@ -30,14 +30,17 @@ Switch::Switch(uint8_t device_type, uint8_t device_id, uint8_t product_id, const
     : EMSdevice(device_type, device_id, product_id, version, name, flags, brand) {
     LOG_DEBUG(F("Adding new Switch with device ID 0x%02X"), device_id);
 
-    register_telegram_type(0x9C, F("WM10MonitorMessage"), false, [&](std::shared_ptr<const Telegram> t) { process_WM10MonitorMessage(t); });
-    register_telegram_type(0x9D, F("WM10SetMessage"), false, [&](std::shared_ptr<const Telegram> t) { process_WM10SetMessage(t); });
-    register_telegram_type(0x1E, F("WM10TempMessage"), false, [&](std::shared_ptr<const Telegram> t) { process_WM10TempMessage(t); });
+    if (EMSbus::tx_mode() <= EMS_TXMODE_HW) {
+        register_telegram_type(0x9C, F("WM10MonitorMessage"), false, [&](std::shared_ptr<const Telegram> t) { process_WM10MonitorMessage(t); });
+        register_telegram_type(0x9D, F("WM10SetMessage"), false, [&](std::shared_ptr<const Telegram> t) { process_WM10SetMessage(t); });
+        register_telegram_type(0x1E, F("WM10TempMessage"), false, [&](std::shared_ptr<const Telegram> t) { process_WM10TempMessage(t); });
+    }
 }
 
 // fetch the values into a JSON document for display in the web
 void Switch::device_info_web(JsonArray & root, uint8_t & part) {
-    StaticJsonDocument<EMSESP_MAX_JSON_SIZE_SMALL> doc;
+    DynamicJsonDocument doc(EMSESP_MAX_JSON_SIZE_SMALL);
+    //StaticJsonDocument<EMSESP_MAX_JSON_SIZE_SMALL> doc;
     JsonObject                                     json = doc.to<JsonObject>();
     if (export_values(json)) {
         create_value_json(root, F("activated"), nullptr, F_(activated), nullptr, json);
@@ -55,7 +58,8 @@ void Switch::publish_values(JsonObject & json, bool force) {
         }
     }
 
-    StaticJsonDocument<EMSESP_MAX_JSON_SIZE_SMALL> doc;
+    DynamicJsonDocument doc(EMSESP_MAX_JSON_SIZE_SMALL);
+    //StaticJsonDocument<EMSESP_MAX_JSON_SIZE_SMALL> doc;
     JsonObject                                     json_data = doc.to<JsonObject>();
     if (export_values(json_data)) {
         Mqtt::publish(F("switch_data"), doc.as<JsonObject>());
@@ -98,7 +102,8 @@ void Switch::register_mqtt_ha_config() {
     }
 
     // Create the Master device
-    StaticJsonDocument<EMSESP_MAX_JSON_SIZE_HA_CONFIG> doc;
+    DynamicJsonDocument doc(EMSESP_MAX_JSON_SIZE_HA_CONFIG);
+    //StaticJsonDocument<EMSESP_MAX_JSON_SIZE_HA_CONFIG> doc;
 
     char name[10];
     snprintf_P(name, sizeof(name), PSTR("Switch"));
@@ -110,21 +115,23 @@ void Switch::register_mqtt_ha_config() {
 
     doc["ic"] = FJSON("mdi:home-thermometer-outline");
 
-    char stat_t[128];
-    snprintf_P(stat_t, sizeof(stat_t), PSTR("%s/switch_data"), Mqtt::base().c_str());
-    doc["stat_t"] = stat_t;
+    char temp[128];
+    snprintf_P(temp, sizeof(temp), PSTR("%s/switch_data"), Mqtt::base().c_str());
+    doc["stat_t"] = temp;
 
     doc["val_tpl"] = FJSON("{{value_json.type}}"); // HA needs a single value. We take the type which is wwc or hc
 
     JsonObject dev = doc.createNestedObject("dev");
-    dev["name"]    = FJSON("EMS-ESP Switch");
+    snprintf_P(temp, sizeof(temp), PSTR("%s Switch"), Mqtt::base().c_str());
+    dev["name"]    = temp;
     dev["sw"]      = EMSESP_APP_VERSION;
     dev["mf"]      = brand_to_string();
     dev["mdl"]     = this->name();
     JsonArray ids  = dev.createNestedArray("ids");
-    ids.add("ems-esp-switch");
-
-    Mqtt::publish_ha(F("homeassistant/sensor/ems-esp/switch/config"), doc.as<JsonObject>()); // publish the config payload with retain flag
+    snprintf_P(temp, sizeof(temp), PSTR("%s-switch"), Mqtt::base().c_str());
+    ids.add(temp);
+    snprintf_P(temp, sizeof(temp), PSTR("homeassistant/sensor/%s/switch/config"), Mqtt::base().c_str());
+    Mqtt::publish_ha(temp, doc.as<JsonObject>()); // publish the config payload with retain flag
 
     Mqtt::register_mqtt_ha_sensor(nullptr, nullptr, F_(activated), device_type(), "activated", nullptr, nullptr);
     Mqtt::register_mqtt_ha_sensor(nullptr, nullptr, F_(flowTempHc), device_type(), "flowTempHc", F_(degrees), F_(iconwatertemp));

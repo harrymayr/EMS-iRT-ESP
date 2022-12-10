@@ -25,7 +25,7 @@
 #define EMSESP_SETTINGS_FILE "/config/emsespSettings.json"
 #define EMSESP_SETTINGS_SERVICE_PATH "/rest/emsespSettings"
 
-#define EMSESP_DEFAULT_TX_MODE 1       // EMS1.0
+#define EMSESP_DEFAULT_TX_MODE 5       // EMS1.0
 #define EMSESP_DEFAULT_TX_DELAY 0      // no delay
 #define EMSESP_DEFAULT_EMS_BUS_ID 0x0B // service key
 #define EMSESP_DEFAULT_SYSLOG_ENABLED false

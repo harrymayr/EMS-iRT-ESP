@@ -28,30 +28,32 @@ Mixer::Mixer(uint8_t device_type, uint8_t device_id, uint8_t product_id, const s
     : EMSdevice(device_type, device_id, product_id, version, name, flags, brand) {
     LOG_DEBUG(F("Adding new Mixer with device ID 0x%02X"), device_id);
 
-    if (flags == EMSdevice::EMS_DEVICE_FLAG_MMPLUS) {
-        if (device_id <= 0x27) {
-            // telegram handlers 0x20 - 0x27 for HC
-            register_telegram_type(device_id - 0x20 + 0x02D7, F("MMPLUSStatusMessage_HC"), true, [&](std::shared_ptr<const Telegram> t) {
-                process_MMPLUSStatusMessage_HC(t);
-            });
-        } else {
-            // telegram handlers for warm water/DHW 0x28, 0x29
-            register_telegram_type(device_id - 0x28 + 0x0331, F("MMPLUSStatusMessage_WWC"), true, [&](std::shared_ptr<const Telegram> t) {
-                process_MMPLUSStatusMessage_WWC(t);
-            });
+    if (EMSbus::tx_mode() <= EMS_TXMODE_HW) {
+        if (flags == EMSdevice::EMS_DEVICE_FLAG_MMPLUS) {
+            if (device_id <= 0x27) {
+                // telegram handlers 0x20 - 0x27 for HC
+                register_telegram_type(device_id - 0x20 + 0x02D7, F("MMPLUSStatusMessage_HC"), true, [&](std::shared_ptr<const Telegram> t) {
+                    process_MMPLUSStatusMessage_HC(t);
+                });
+            } else {
+                // telegram handlers for warm water/DHW 0x28, 0x29
+                register_telegram_type(device_id - 0x28 + 0x0331, F("MMPLUSStatusMessage_WWC"), true, [&](std::shared_ptr<const Telegram> t) {
+                    process_MMPLUSStatusMessage_WWC(t);
+                });
+            }
         }
-    }
 
-    // EMS 1.0
-    if (flags == EMSdevice::EMS_DEVICE_FLAG_MM10) {
-        // register_telegram_type(0x00AA, F("MMConfigMessage"), false, [&](std::shared_ptr<const Telegram> t) { process_MMConfigMessage(t); });
-        register_telegram_type(0x00AB, F("MMStatusMessage"), true, [&](std::shared_ptr<const Telegram> t) { process_MMStatusMessage(t); });
-        // register_telegram_type(0x00AC, F("MMSetMessage"), false, [&](std::shared_ptr<const Telegram> t) { process_MMSetMessage(t); });
-    }
+        // EMS 1.0
+        if (flags == EMSdevice::EMS_DEVICE_FLAG_MM10) {
+            // register_telegram_type(0x00AA, F("MMConfigMessage"), false, [&](std::shared_ptr<const Telegram> t) { process_MMConfigMessage(t); });
+            register_telegram_type(0x00AB, F("MMStatusMessage"), true, [&](std::shared_ptr<const Telegram> t) { process_MMStatusMessage(t); });
+            // register_telegram_type(0x00AC, F("MMSetMessage"), false, [&](std::shared_ptr<const Telegram> t) { process_MMSetMessage(t); });
+        }
 
-    // HT3
-    if (flags == EMSdevice::EMS_DEVICE_FLAG_IPM) {
-        register_telegram_type(0x010C, F("IPMSetMessage"), false, [&](std::shared_ptr<const Telegram> t) { process_IPMStatusMessage(t); });
+        // HT3
+        if (flags == EMSdevice::EMS_DEVICE_FLAG_IPM) {
+            register_telegram_type(0x010C, F("IPMSetMessage"), false, [&](std::shared_ptr<const Telegram> t) { process_IPMStatusMessage(t); });
+        }
     }
 }
 
@@ -62,7 +64,8 @@ void Mixer::device_info_web(JsonArray & root, uint8_t & part) {
     }
 
     // fetch the values into a JSON document
-    StaticJsonDocument<EMSESP_MAX_JSON_SIZE_SMALL> doc;
+    DynamicJsonDocument doc(EMSESP_MAX_JSON_SIZE_SMALL);
+    //StaticJsonDocument<EMSESP_MAX_JSON_SIZE_SMALL> doc;
     JsonObject                                     json = doc.to<JsonObject>();
 
     if (!export_values_format(Mqtt::Format::SINGLE, json)) {
@@ -106,7 +109,8 @@ void Mixer::publish_values(JsonObject & json, bool force) {
     }
 
     if (Mqtt::mqtt_format() == Mqtt::Format::SINGLE) {
-        StaticJsonDocument<EMSESP_MAX_JSON_SIZE_SMALL> doc;
+        DynamicJsonDocument doc(EMSESP_MAX_JSON_SIZE_SMALL);
+        //StaticJsonDocument<EMSESP_MAX_JSON_SIZE_SMALL> doc;
         JsonObject                                     json_data = doc.to<JsonObject>();
         if (export_values_format(Mqtt::mqtt_format(), json_data)) {
             char topic[30];
@@ -135,15 +139,15 @@ void Mixer::register_mqtt_ha_config() {
     }
 
     // Create the Master device
-    StaticJsonDocument<EMSESP_MAX_JSON_SIZE_HA_CONFIG> doc;
+    DynamicJsonDocument doc(EMSESP_MAX_JSON_SIZE_HA_CONFIG);
+    //StaticJsonDocument<EMSESP_MAX_JSON_SIZE_HA_CONFIG> doc;
 
-    char name[20];
-    snprintf_P(name, sizeof(name), PSTR("Mixer %02X"), device_id() - 0x20 + 1);
-    doc["name"] = name;
+    char temp[128];
+    snprintf_P(temp, sizeof(temp), PSTR("%s Mixer %02X"), Mqtt::base().c_str(), device_id() - 0x20 + 1);
+    doc["name"] = temp;
 
-    char uniq_id[20];
-    snprintf_P(uniq_id, sizeof(uniq_id), PSTR("mixer%02X"), device_id() - 0x20 + 1);
-    doc["uniq_id"] = uniq_id;
+    snprintf_P(temp, sizeof(temp), PSTR("%s_mixer%02X"), Mqtt::base().c_str(), device_id() - 0x20 + 1);
+    doc["uniq_id"] = temp;
 
     doc["ic"] = FJSON("mdi:home-thermometer-outline");
 
@@ -154,16 +158,18 @@ void Mixer::register_mqtt_ha_config() {
     doc["val_tpl"] = FJSON("{{value_json.type}}"); // HA needs a single value. We take the type which is wwc or hc
 
     JsonObject dev = doc.createNestedObject("dev");
-    dev["name"]    = FJSON("EMS-ESP Mixer");
+    snprintf_P(temp, sizeof(temp), PSTR("%s Mixer"), Mqtt::base().c_str());
+    dev["name"]    = temp;
     dev["sw"]      = EMSESP_APP_VERSION;
     dev["mf"]      = brand_to_string();
     dev["mdl"]     = this->name();
     JsonArray ids  = dev.createNestedArray("ids");
-    ids.add("ems-esp-mixer");
+    snprintf_P(temp, sizeof(temp), PSTR("%s-mixer"), Mqtt::base().c_str());
+    ids.add(temp);
 
     std::string topic(100, '\0');
     if (type() == Type::HC) {
-        snprintf_P(&topic[0], topic.capacity() + 1, PSTR("homeassistant/sensor/ems-esp/mixer_hc%d/config"), hc_);
+        snprintf_P(&topic[0], topic.capacity() + 1, PSTR("homeassistant/sensor/%s/mixer_hc%d/config"), Mqtt::base().c_str(), hc_);
         Mqtt::publish_ha(topic, doc.as<JsonObject>()); // publish the config payload with retain flag
         char hc_name[10];
         snprintf_P(hc_name, sizeof(hc_name), PSTR("hc%d"), hc_);
@@ -174,7 +180,7 @@ void Mixer::register_mqtt_ha_config() {
         Mqtt::register_mqtt_ha_sensor(hc_name, nullptr, F_(valveStatus), device_type(), "valveStatus", F_(percent), F_(iconpercent));
     } else {
         // WWC
-        snprintf_P(&topic[0], topic.capacity() + 1, PSTR("homeassistant/sensor/ems-esp/mixer_wwc%d/config"), hc_);
+        snprintf_P(&topic[0], topic.capacity() + 1, PSTR("homeassistant/sensor/%s/mixer_wwc%d/config"), Mqtt::base().c_str(), hc_);
         Mqtt::publish_ha(topic, doc.as<JsonObject>()); // publish the config payload with retain flag
         char wwc_name[10];
         snprintf_P(wwc_name, sizeof(wwc_name), PSTR("wwc%d"), hc_);

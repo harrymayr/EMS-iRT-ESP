@@ -19,6 +19,7 @@
 #include "system.h"
 #include "emsesp.h"  // for send_raw_telegram() command
 #include "version.h" // firmware version of EMS-ESP
+#include "mqtt.h"
 
 #if defined(ESP32)
 #include "driver/adc.h"
@@ -326,6 +327,7 @@ void System::loop() {
     if (!last_heartbeat_ || (currentMillis - last_heartbeat_ > SYSTEM_HEARTBEAT_INTERVAL)) {
         last_heartbeat_ = currentMillis;
         send_heartbeat();
+        LOG_DEBUG(F("Heartbeat in Loop()"));
     }
 
 #if defined(ESP8266)
@@ -361,13 +363,44 @@ void System::send_heartbeat() {
         return;
     }
 
-    StaticJsonDocument<EMSESP_MAX_JSON_SIZE_SMALL> doc;
+    if (Mqtt::mqtt_format() == Mqtt::Format::HA) {
+        // register ww in next cycle if both unregistered
+        if (!mqtt_ha_status_config && uuid::get_uptime_sec() > (EMSESP::tx_delay() + 50u)) {
+            LOG_DEBUG(F("[DEBUG] register MQTT HA status config"));
+            // create the sensors - must match the MQTT payload keys
+            // these are all from the heartbeat MQTT topic
+            Mqtt::register_mqtt_ha_sensor(nullptr, nullptr, F_(wifirssi), EMSdevice::HEARTBEAT, "rssi", F("dBm"), F_(iconwifi),F("measurement"),F("signal_strength"));
+            Mqtt::register_mqtt_ha_sensor(nullptr, nullptr, F_(uptime), EMSdevice::HEARTBEAT, "uptime", nullptr, F_(iconcounter),F("measurement"));
+            Mqtt::register_mqtt_ha_sensor(nullptr, nullptr, F_(uptimesec), EMSdevice::HEARTBEAT, "uptime_sec", F("sec"), F_(iconlockout),F("measurement"));
+            Mqtt::register_mqtt_ha_sensor(nullptr, nullptr, F_(mqttfails), EMSdevice::HEARTBEAT, "mqtt_fails", nullptr, F_(iconcounter),F("measurement"));
+            Mqtt::register_mqtt_ha_sensor(nullptr, nullptr, F_(txwrites), EMSdevice::HEARTBEAT, "tx_send", nullptr, F_(iconcounter),F("measurement"));
+            Mqtt::register_mqtt_ha_sensor(nullptr, nullptr, F_(txreads), EMSdevice::HEARTBEAT, "tx_read", nullptr, F_(iconcounter),F("measurement"));
+            Mqtt::register_mqtt_ha_sensor(nullptr, nullptr, F_(txfails), EMSdevice::HEARTBEAT, "tx_fails", nullptr, F_(iconcounter),F("measurement"));
+            Mqtt::register_mqtt_ha_sensor(nullptr, nullptr, F_(rxrec), EMSdevice::HEARTBEAT, "rx_read", nullptr, F_(iconcounter),F("measurement"));
+            Mqtt::register_mqtt_ha_sensor(nullptr, nullptr, F_(rxfails), EMSdevice::HEARTBEAT, "rx_fails", nullptr, F_(iconcounter),F("measurement"));
+            Mqtt::register_mqtt_ha_sensor(nullptr, nullptr, F_(dallasfails), EMSdevice::HEARTBEAT, "dallas_fails", nullptr, F_(iconcounter),F("measurement"));
+            Mqtt::register_mqtt_ha_sensor(nullptr, nullptr, F_(freemem), EMSdevice::HEARTBEAT, "freemem", F("%"), F_(iconmemory));
+#if defined(ESP8266)
+            Mqtt::register_mqtt_ha_sensor(nullptr, nullptr, F_(heapfrag), EMSdevice::HEARTBEAT, "fragmem", F("%"), F_(iconpercent));
+            Mqtt::register_mqtt_ha_sensor(nullptr, nullptr, F_(maxfreeblock), EMSdevice::HEARTBEAT, "free_block", F("bytes"), F_(iconmemory));
+            Mqtt::register_mqtt_ha_sensor(nullptr, nullptr, F_(freestack), EMSdevice::HEARTBEAT, "cont_stack", F("bytes"), F_(iconmemory));
+#endif
+            if (analog_enabled_)
+                Mqtt::register_mqtt_ha_sensor(nullptr, nullptr, F_(analog), EMSdevice::HEARTBEAT, "adc", F("mV"), F_(iconcounter),F("measurement"));                
+            mqtt_ha_status_config = true;
+            return;
+        }
+    }
+        DynamicJsonDocument doc(EMSESP_MAX_JSON_SIZE_MEDIUM);
+    //StaticJsonDocument<EMSESP_MAX_JSON_SIZE_SMALL> doc;
 
     uint8_t ems_status = EMSESP::bus_status();
     if (ems_status == EMSESP::BUS_STATUS_TX_ERRORS) {
         doc["status"] = FJSON("txerror");
-    } else if (ems_status == EMSESP::BUS_STATUS_CONNECTED) {
-        doc["status"] = FJSON("connected");
+    } else if (ems_status == EMSESP::BUS_STATUS_EMS_CONNECTED) {
+        doc["status"] = FJSON("EMS-bus connected");
+    } else if (ems_status == EMSESP::BUS_STATUS_IRT_CONNECTED) {
+        doc["status"] = FJSON("iRT-bus connected");
     } else {
         doc["status"] = FJSON("disconnected");
     }
@@ -376,15 +409,20 @@ void System::send_heartbeat() {
     doc["uptime"]       = uuid::log::format_timestamp_ms(uuid::get_uptime_ms(), 3);
     doc["uptime_sec"]   = uuid::get_uptime_sec();
     doc["mqtt_fails"]   = Mqtt::publish_fails();
+    doc["tx_send"]      = EMSESP::txservice_.telegram_write_count();
+    doc["tx_read"]      = EMSESP::txservice_.telegram_read_count();
     doc["tx_fails"]     = EMSESP::txservice_.telegram_fail_count();
+    doc["rx_read"]      = EMSESP::rxservice_.telegram_count();
     doc["rx_fails"]     = EMSESP::rxservice_.telegram_error_count();
     doc["dallas_fails"] = EMSESP::sensor_fails();
     doc["freemem"]      = free_mem();
 #if defined(ESP8266)
-    doc["fragmem"] = ESP.getHeapFragmentation();
+    doc["fragmem"]      = ESP.getHeapFragmentation();
+    doc["free_block"]   = (unsigned long)ESP.getMaxFreeBlockSize();
+    doc["cont_stack"]   = (unsigned long)ESP.getFreeContStack();
 #endif
     if (analog_enabled_) {
-        doc["adc"] = analog_;
+        doc["adc"]      = analog_;
     }
 
     Mqtt::publish(F("heartbeat"), doc.as<JsonObject>()); // send to MQTT with retain off. This will add to MQTT queue.
@@ -799,7 +837,8 @@ bool System::check_upgrade() {
     bool                                           failed = false;
     File                                           file;
     JsonObject                                     network, general, mqtt, custom_settings;
-    StaticJsonDocument<EMSESP_MAX_JSON_SIZE_LARGE> doc;
+    DynamicJsonDocument doc(EMSESP_MAX_JSON_SIZE_LARGE);
+    //StaticJsonDocument<EMSESP_MAX_JSON_SIZE_LARGE> doc;
 
     // open the system settings:
     // {
@@ -1107,19 +1146,33 @@ bool System::command_info(const char * value, const int8_t id, JsonObject & json
 
     switch (EMSESP::bus_status()) {
     case EMSESP::BUS_STATUS_OFFLINE:
-        node["bus"] = (F("disconnected"));
+        if (EMSbus::tx_mode() <= EMS_TXMODE_HW)
+            node["bus"] = (F("EMS-bus disconnected"));
+        else
+            node["bus"] = (F("iRT-bus disconnected"));
         break;
     case EMSESP::BUS_STATUS_TX_ERRORS:
-        node["bus"] = (F("connected, instable tx"));
+        if (EMSbus::tx_mode() <= EMS_TXMODE_HW)
+            node["bus"] = (F("EMS-bus connected, instable tx"));
+        else
+            node["bus"] = (F("iRT-bus connected, instable tx"));
         break;
-    case EMSESP::BUS_STATUS_CONNECTED:
+    case EMSESP::BUS_STATUS_EMS_CONNECTED:
+    case EMSESP::BUS_STATUS_IRT_CONNECTED:
     default:
-        node["bus"] = (F("connected"));
+        if (EMSbus::tx_mode() <= EMS_TXMODE_HW)
+            node["bus"] = (F("EMS-bus connected"));
+        else
+            node["bus"] = (F("iRT-bus connected"));
+        break;
         break;
     }
 
     if (EMSESP::bus_status() != EMSESP::BUS_STATUS_OFFLINE) {
-        node["bus protocol"]          = EMSbus::is_ht3() ? F("HT3") : F("Buderus");
+        if (EMSbus::tx_mode() <= EMS_TXMODE_HW)
+            node["bus protocol"]          = EMSbus::is_ht3() ? F("EMS-HT3") : F("EMS-Buderus");
+        else
+            node["bus protocol"]          = F("iRT");
         node["#telegrams received"]   = EMSESP::rxservice_.telegram_count();
         node["#read requests sent"]   = EMSESP::txservice_.telegram_read_count();
         node["#write requests sent"]  = EMSESP::txservice_.telegram_write_count();

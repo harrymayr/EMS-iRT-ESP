@@ -104,7 +104,7 @@ class EMSESPDevicesForm extends Component<
     return (
       <TableContainer>
         <Typography variant="h6" color="primary">
-          EMS Devices
+          EMS/iRT Devices
         </Typography>
         <p></p>
         {!this.noDevices() && (

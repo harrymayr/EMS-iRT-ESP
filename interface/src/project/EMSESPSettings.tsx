@@ -19,7 +19,7 @@ class EMSESP extends Component<RouteComponentProps> {
     return (
       <MenuAppBar sectionTitle="Settings">
         <Tabs value={this.props.match.url} onChange={this.handleTabChange} variant="fullWidth">
-          <Tab value={`/${PROJECT_PATH}/settings`} label="EMS-ESP Settings" />
+          <Tab value={`/${PROJECT_PATH}/settings`} label="EMS/iRT-ESP Settings" />
         </Tabs>
         <Switch>
           <AuthenticatedRoute exact path={`/${PROJECT_PATH}/settings`} component={EMSESPSettingsController} />

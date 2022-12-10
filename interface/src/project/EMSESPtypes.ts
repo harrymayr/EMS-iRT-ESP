@@ -22,9 +22,10 @@ export interface EMSESPSettings {
 }
 
 export enum busConnectionStatus {
-  BUS_STATUS_CONNECTED = 0,
-  BUS_STATUS_TX_ERRORS = 1,
-  BUS_STATUS_OFFLINE = 2
+  BUS_STATUS_EMS_CONNECTED = 0,
+  BUS_STATUS_IRT_CONNECTED = 1,
+  BUS_STATUS_TX_ERRORS = 2,
+  BUS_STATUS_OFFLINE = 3
 }
 
 export interface EMSESPStatus {

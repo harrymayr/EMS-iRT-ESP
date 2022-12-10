@@ -131,7 +131,8 @@ void Shower::shower_alert_start() {
 // Publish shower data
 // returns true if added to MQTT queue went ok
 void Shower::publish_values() {
-    StaticJsonDocument<EMSESP_MAX_JSON_SIZE_SMALL> doc;
+    DynamicJsonDocument doc(EMSESP_MAX_JSON_SIZE_SMALL);
+    //StaticJsonDocument<EMSESP_MAX_JSON_SIZE_SMALL> doc;
     char                                           s[40];
 
     //first sent out the HA MQTT Discovery config topic
@@ -157,7 +158,8 @@ void Shower::send_MQTT_discovery_config() {
 
     //send the config depending on the MQTT format used
     if (Mqtt::mqtt_format() == Mqtt::Format::HA) {
-        StaticJsonDocument<EMSESP_MAX_JSON_SIZE_HA_CONFIG> doc;
+        DynamicJsonDocument doc(EMSESP_MAX_JSON_SIZE_HA_CONFIG);
+        //StaticJsonDocument<EMSESP_MAX_JSON_SIZE_HA_CONFIG> doc;
         doc["name"]        = FJSON("Shower Data");
         doc["uniq_id"]     = FJSON("shower_data");
         doc["~"]           = Mqtt::base();

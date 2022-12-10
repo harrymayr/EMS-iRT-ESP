@@ -8,7 +8,9 @@ export const busStatusHighlight = ({ status }: EMSESPStatus, theme: Theme) => {
   switch (status) {
     case busConnectionStatus.BUS_STATUS_TX_ERRORS:
       return theme.palette.warning.main;
-    case busConnectionStatus.BUS_STATUS_CONNECTED:
+    case busConnectionStatus.BUS_STATUS_EMS_CONNECTED:
+      return theme.palette.success.main;
+    case busConnectionStatus.BUS_STATUS_IRT_CONNECTED:
       return theme.palette.success.main;
     case busConnectionStatus.BUS_STATUS_OFFLINE:
       return theme.palette.error.main;
@@ -19,9 +21,11 @@ export const busStatusHighlight = ({ status }: EMSESPStatus, theme: Theme) => {
 
 export const busStatus = ({ status }: EMSESPStatus) => {
   switch (status) {
-    case busConnectionStatus.BUS_STATUS_CONNECTED:
-      return "Connected";
-    case busConnectionStatus.BUS_STATUS_TX_ERRORS:
+    case busConnectionStatus.BUS_STATUS_EMS_CONNECTED:
+      return "EMS-Bus Connected";
+      case busConnectionStatus.BUS_STATUS_IRT_CONNECTED:
+        return "iRT-Bus Connected";
+      case busConnectionStatus.BUS_STATUS_TX_ERRORS:
       return "Tx Errors";
     case busConnectionStatus.BUS_STATUS_OFFLINE:
       return "Disconnected";

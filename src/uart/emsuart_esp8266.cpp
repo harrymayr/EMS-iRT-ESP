@@ -99,11 +99,25 @@ void ICACHE_FLASH_ATTR EMSuart::start(const uint8_t tx_mode, const uint8_t rx_gp
     PIN_PULLUP_DIS(PERIPHS_IO_MUX_U0RXD_U);
     PIN_FUNC_SELECT(PERIPHS_IO_MUX_U0RXD_U, FUNC_U0RXD);
 
-    // set 9600, 8 bits, no parity check, 1 stop bit
-    USD(EMSUART_UART)  = (UART_CLK_FREQ / EMSUART_BAUD);
-    USC0(EMSUART_UART) = EMSUART_CONFIG; // 8N1
-    USC0(EMSUART_UART) |= ((1 << UCRXRST) | (1 << UCTXRST));  // set clear fifo bits
-    USC0(EMSUART_UART) &= ~((1 << UCRXRST) | (1 << UCTXRST)); // clear bits
+    if (tx_mode_ <= EMS_TXMODE_HW) {
+      // set 9600, 8 bits, no parity check, 1 stop bit
+      USD(EMSUART_UART)  = (UART_CLK_FREQ / EMSUART_BAUD);
+      USC0(EMSUART_UART) = EMSUART_CONFIG; // 8N1
+      USC0(EMSUART_UART) |= ((1 << UCRXRST) | (1 << UCTXRST));  // set clear fifo bits
+      USC0(EMSUART_UART) &= ~((1 << UCRXRST) | (1 << UCTXRST)); // clear bits
+    }
+    else {
+      // set 4800, 8 bits, no parity check, 1 stop bit
+      USD(EMSUART_UART)  = (UART_CLK_FREQ / IRTUART_BAUD);
+      if ((tx_mode_ == EMS_TXMODE_IRT_ACTIVE_POLL) || (tx_mode_ == EMS_TXMODE_IRT_ACTIVE) ) {
+  		USC0(EMSUART_UART) = IRTUART_CONFIG_ACTIVE; // 8N1
+      } else {
+	  	USC0(EMSUART_UART) = IRTUART_CONFIG_PASSIVE; // 8N1
+      }
+      USC0(EMSUART_UART) |= ((1 << UCRXRST) | (1 << UCTXRST));  // set clear fifo bits
+      USC0(EMSUART_UART) &= ~((1 << UCRXRST) | (1 << UCTXRST)); // clear bits
+    }
+
 
     // conf1 params
     // UCTOE = RX TimeOut enable (default is 1)

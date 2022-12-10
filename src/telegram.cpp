@@ -57,6 +57,53 @@ uint8_t EMSbus::calculate_crc(const uint8_t * data, const uint8_t length) {
     return crc;
 }
 
+/*
+ Modified version of: https://stackoverflow.com/questions/776508/best-practices-for-circular-shift-rotate-operations-in-c
+ */
+static inline uint8_t rotl8 (uint8_t n, unsigned int c)
+{
+  const unsigned int mask = (CHAR_BIT*sizeof(n) - 1);  // assumes width is a power of 2.
+
+  // assert ( (c<=mask) &&"rotate by type width or more");
+  c &= mask;
+  return (n<<c) | (n>>( (-c)&mask ));
+}
+uint8_t EMSbus::calculate_irt_crc(const uint8_t * data, const uint8_t length)
+{
+	/* check if if a sub-packet has the right length
+	 * and the checksum is correct.
+	 * checksum calculation is done by xoring the three
+	 * bytes. The second byte is shifted 1 bit to the left and
+	 * the third byte is shifted 2 bits to the left before
+	 * xoring the bytes.
+	 * Depending on the high bit of the second byte and the 2 high bits
+	 * of the third byte an additional xor is applied to the output.
+	 **/
+
+	if ((length < 4) || (length > 5)) return 0;
+
+	uint8_t check = 0;
+	check = data[0];
+	check ^= rotl8(data[1], 1);
+	check ^= rotl8(data[2], 2);
+
+	switch (((data[1] >> 5) & 0x04) | ((data[2] >> 6) & 0x03)) {
+	case 1:
+	case 4:
+		check = check ^ 0x18;
+		break;
+	case 2:
+	case 7:
+		check = check ^ 0x30;
+		break;
+	case 3:
+	case 6:
+		check = check ^ 0x28;
+		break;
+	}
+    return check;
+}
+
 // creates a telegram object
 // stores header in separate member objects and the rest in the message_data block
 Telegram::Telegram(const uint8_t   operation,
@@ -142,21 +189,35 @@ void RxService::add(uint8_t * data, uint8_t length) {
         return;
     }
 
+    if (EMSbus::tx_mode() <= EMS_TXMODE_HW) {
     // validate the CRC. if it fails then increment the number of corrupt/incomplete telegrams and only report to console/syslog
     uint8_t crc = calculate_crc(data, length - 1);
-    if (data[length - 1] != crc) {
-        telegram_error_count_++;
-        LOG_ERROR(F("Rx: %s (CRC %02X != %02X)"), Helpers::data_to_hex(data, length).c_str(), data[length - 1], crc);
-        return;
-    }
-
+        if (data[length - 1] != crc) {
+            telegram_error_count_++;
+            LOG_ERROR(F("Rx: %s (CRC %02X != %02X)-TX-Mode %02X"), Helpers::data_to_hex(data, length).c_str(), data[length - 1], crc, EMSbus::tx_mode());
+            return;
+        }
     // since it's a valid telegram, work out the ems mask
     // we check the 1st byte, which assumed is the src ID and see if the MSB (8th bit) is set
     // this is used to identify if the protocol should be Junkers/HT3 or Buderus
     // this only happens once with the first valid rx telegram is processed
-    if (ems_mask() == EMS_MASK_UNSET) {
-        ems_mask(data[0]);
+        if (ems_mask() == EMS_MASK_UNSET) {
+            ems_mask(data[0]);
     }
+    }
+    else {
+        /* the last byte should be the break (0x00). If it is not 0x00 leave it */
+        if ((length > 1) && (data[length -1]) == 0x00)
+            length--;
+        if (ems_mask() == EMS_MASK_UNSET) {
+            ems_mask(0x00);
+            std::string version(5, '\0');
+            snprintf_P(&version[0], version.capacity() + 1, PSTR("*iRT*"));
+            //EMSESP::add_device(0x08, 255,version, EMSdevice::Brand::BUDERUS); // UBA 4000/4001
+            EMSESP::add_device(0x08, 211,version, EMSdevice::Brand::BOSCH); // Easy Control Adapter
+        }
+    }
+
 
     // src, dest and offset are always in fixed positions
     uint8_t src       = data[0] & 0x7F; // strip MSB (HT3 adds it)
@@ -167,64 +228,166 @@ void RxService::add(uint8_t * data, uint8_t length) {
     uint16_t  type_id;
     uint8_t * message_data;   // where the message block starts
     uint8_t   message_length; // length of the message block, excluding CRC
+    uint8_t i, j, ret;
+	uint8_t irt_buffer[IRT_MAX_TELEGRAM_LENGTH];
 
-    // work out depending on the type, where the data message block starts and the message length
-    // EMS 1 has type_id always in data[2], if it gets a ems+ inquiry it will reply with FF but short length
-    // i.e. sending 0B A1 FF 00 01 D8 20 CRC to a MM10 Mixer (ems1.0), the reply is 21 0B FF 00 CRC
-    // see: https://github.com/emsesp/EMS-ESP/issues/380#issuecomment-633663007
-    if (data[2] != 0xFF || length < 6) {
-        // EMS 1.0
-        // also handle F7, F9 as EMS 1.0, see https://github.com/emsesp/EMS-ESP/issues/109#issuecomment-492781044
-        type_id        = data[2];
-        message_data   = data + 4;
-        message_length = length - 5;
-    } else if (data[1] & 0x80) {
-        // EMS 2.0 read request
-        type_id        = (data[5] << 8) + data[6] + 256;
-        message_data   = data + 4; // only data is the requested length
-        message_length = 1;
-    } else {
-        // EMS 2.0 / EMS+
-        type_id        = (data[4] << 8) + data[5] + 256;
-        message_data   = data + 6;
-        message_length = length - 7;
-    }
 
-    // if we're watching and "raw" print out actual telegram as bytes to the console
-    if (EMSESP::watch() == EMSESP::Watch::WATCH_RAW) {
-        uint16_t trace_watch_id = EMSESP::watch_id();
-        if ((trace_watch_id == WATCH_ID_NONE) || (type_id == trace_watch_id)
-            || ((trace_watch_id < 0x80) && ((src == trace_watch_id) || (dest == trace_watch_id)))) {
-            LOG_NOTICE(F("Rx: %s"), Helpers::data_to_hex(data, length).c_str());
+    if (EMSbus::tx_mode() <= EMS_TXMODE_HW) {
+        // work out depending on the type, where the data message block starts and the message length
+        // EMS 1 has type_id always in data[2], if it gets a ems+ inquiry it will reply with FF but short length
+        // i.e. sending 0B A1 FF 00 01 D8 20 CRC to a MM10 Mixer (ems1.0), the reply is 21 0B FF 00 CRC
+        // see: https://github.com/emsesp/EMS-ESP/issues/380#issuecomment-633663007
+        if (data[2] != 0xFF || length < 6) {
+            // EMS 1.0
+            // also handle F7, F9 as EMS 1.0, see https://github.com/emsesp/EMS-ESP/issues/109#issuecomment-492781044
+            type_id        = data[2];
+            message_data   = data + 4;
+            message_length = length - 5;
+        } else if (data[1] & 0x80) {
+            // EMS 2.0 read request
+            type_id        = (data[5] << 8) + data[6] + 256;
+            message_data   = data + 4; // only data is the requested length
+            message_length = 1;
+        } else {
+            // EMS 2.0 / EMS+
+            type_id        = (data[4] << 8) + data[5] + 256;
+            message_data   = data + 6;
+            message_length = length - 7;
+        }
+        // if we're watching and "raw" print out actual telegram as bytes to the console
+        if (EMSESP::watch() == EMSESP::Watch::WATCH_RAW) {
+            uint16_t trace_watch_id = EMSESP::watch_id();
+            if ((trace_watch_id == WATCH_ID_NONE) || (type_id == trace_watch_id)
+                || ((trace_watch_id < 0x80) && ((src == trace_watch_id) || (dest == trace_watch_id)))) {
+                LOG_NOTICE(F("Rx: %s"), Helpers::data_to_hex(data, length).c_str());
+            } else if (EMSESP::trace_raw()) {
+                LOG_TRACE(F("Rx: %s"), Helpers::data_to_hex(data, length).c_str());
+            }
         } else if (EMSESP::trace_raw()) {
             LOG_TRACE(F("Rx: %s"), Helpers::data_to_hex(data, length).c_str());
         }
-    } else if (EMSESP::trace_raw()) {
-        LOG_TRACE(F("Rx: %s"), Helpers::data_to_hex(data, length).c_str());
+
+    #ifdef EMSESP_DEBUG
+        LOG_DEBUG(F("[DEBUG] New Rx telegram, message length %d"), message_length);
+    #endif
+
+        // if we don't have a type_id exit,
+        // do not exit on empty message, it is checked for toggle fetch
+        if (type_id == 0) {
+            return;
+        }
+
+        // if we receive a hc2.. telegram from 0x19.. match it to master_thermostat if master is 0x18
+        src = EMSESP::check_master_device(src, type_id, true);
+
+        // create the telegram
+        auto telegram = std::make_shared<Telegram>(operation, src, dest, type_id, offset, message_data, message_length);
+
+        // check if queue is full, if so remove top item to make space
+        if (rx_telegrams_.size() >= MAX_RX_TELEGRAMS) {
+            rx_telegrams_.pop_front();
+        }
+
+        rx_telegrams_.emplace_back(rx_telegram_id_++, std::move(telegram)); // add to queue
     }
+    else {
+        offset = 0;
+        i = 3;
+        j = 0;
+        // iRT device address always 0x01 but want to speak with us ;-)
+        if (dest == 1)
+           dest = ems_bus_id();
+           // iRT device should act as a boiler
+        if (src == 1)
+           src = 0x08;
+        while (((i + 1) < length) && (j < IRT_MAX_TELEGRAM_LENGTH)) {
+            if (data[i] == (0xFF - data[i+1])) {
+                irt_buffer[j++] = data[i];
+                i+=2;
+            } else if (data[i] == data[i+1]) {
+                irt_buffer[j++] = data[i];
+                i += 2;
+            } else {
+                // Drop buffer on crc error
+                uint8_t crc = 0x55;
+                telegram_error_count_++;
+                LOG_ERROR(F("Rx: %s (CRC %02X != %02X)"), Helpers::data_to_hex(data, length).c_str(), data[length - 1], crc);
+                i++;
+                break;
+    //			return;
+            }
+        }
+        // no data ?
+        if (j < 1){
+            return;
+        }
+        i = 0;
+        ret = 0;
+        while (((i + 4) <= j) && (ret == 0)) {
+            type_id        = irt_buffer[i];
+            message_data   = &irt_buffer[i];
+            if (irt_buffer[i] & 0x80) {
+                if ((i + 5) <= j) {
+                message_length = 5;
+                operation = Telegram::Operation::RX_READ;
+                }
+            } else {
+                message_length = 4;
+                operation = Telegram::Operation::RX;
+            }
+            i = i + message_length;
+//            LOG_DEBUG(F("Rx: %s "), Helpers::data_to_hex(message_data, message_length).c_str());
+            uint8_t crc = calculate_irt_crc(message_data, message_length);
+            if (message_data[3] != crc) {
+                // Drop buffer on crc error
+                telegram_error_count_++;
+                LOG_ERROR(F("Rx: %s (CRC %02X != %02X)"), Helpers::data_to_hex(message_data, message_length).c_str(), message_data[3], crc);
+                return;
+            }
+    
+    /*             if ((global_has_changed) && (EMS_Sys_Status.emsLogging != EMS_SYS_LOGGING_NONE)) {
+                    irt_dump_status_line();
+                    global_has_changed = 0;
+                }
+    */    
 
-#ifdef EMSESP_DEBUG
-    LOG_DEBUG(F("[DEBUG] New Rx telegram, message length %d"), message_length);
-#endif
+            // if we're watching and "raw" print out actual telegram as bytes to the console
+            if (EMSESP::watch() == EMSESP::Watch::WATCH_RAW) {
+                uint16_t trace_watch_id = EMSESP::watch_id();
+                if ((trace_watch_id == WATCH_ID_NONE) || (type_id == trace_watch_id)
+                    || ((trace_watch_id < 0x80) && ((src == trace_watch_id) || (dest == trace_watch_id)))) {
+                    LOG_NOTICE(F("Rx: %s"), Helpers::data_to_hex(data, length).c_str());
+                } else if (EMSESP::trace_raw()) {
+                    LOG_TRACE(F("Rx: %s"), Helpers::data_to_hex(data, length).c_str());
+                }
+            } else if (EMSESP::trace_raw()) {
+                LOG_TRACE(F("Rx: %s"), Helpers::data_to_hex(data, length).c_str());
+            }
 
-    // if we don't have a type_id exit,
-    // do not exit on empty message, it is checked for toggle fetch
-    if (type_id == 0) {
-        return;
+        #ifdef EMSESP_DEBUG
+            LOG_DEBUG(F("[DEBUG] New Rx telegram, message length %d"), message_length);
+        #endif
+
+            // if we don't have a type_id exit,
+            // do not exit on empty message, it is checked for toggle fetch
+            if (type_id != 0) {
+
+                // if we receive a hc2.. telegram from 0x19.. match it to master_thermostat if master is 0x18
+                src = EMSESP::check_master_device(src, type_id, true);
+
+                // create the telegram
+                auto telegram = std::make_shared<Telegram>(operation, src, dest, type_id, offset, message_data, message_length);
+
+                // check if queue is full, if so remove top item to make space
+                if (rx_telegrams_.size() >= MAX_RX_TELEGRAMS) {
+                    rx_telegrams_.pop_front();
+                }
+
+                rx_telegrams_.emplace_back(rx_telegram_id_++, std::move(telegram)); // add to queue
+//                LOG_DEBUG(F("added telegram: %s, operation: %02X, src: %02X, dest: %02X, type_id: %02X, offset: %02X, message_length: %02X, rx_telegram_id: %02X"), Helpers::data_to_hex(message_data, message_length).c_str(),operation, src, dest, type_id, offset, message_length,rx_telegram_id_-1);
+            }
+        }
     }
-
-    // if we receive a hc2.. telegram from 0x19.. match it to master_thermostat if master is 0x18
-    src = EMSESP::check_master_device(src, type_id, true);
-
-    // create the telegram
-    auto telegram = std::make_shared<Telegram>(operation, src, dest, type_id, offset, message_data, message_length);
-
-    // check if queue is full, if so remove top item to make space
-    if (rx_telegrams_.size() >= MAX_RX_TELEGRAMS) {
-        rx_telegrams_.pop_front();
-    }
-
-    rx_telegrams_.emplace_back(rx_telegram_id_++, std::move(telegram)); // add to queue
 }
 
 //

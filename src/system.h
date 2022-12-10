@@ -124,6 +124,7 @@ class System {
     static uint8_t led_gpio_;
     static bool    syslog_enabled_;
     static bool    analog_enabled_;
+    bool    mqtt_ha_status_config = false; // HA MQTT Discovery        
 };
 
 } // namespace emsesp

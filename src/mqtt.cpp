@@ -18,6 +18,7 @@
 
 #include "mqtt.h"
 #include "emsesp.h"
+#include "emsdevice.h"
 #include "version.h"
 
 namespace emsesp {
@@ -262,7 +263,8 @@ void Mqtt::on_message(const char * fulltopic, const char * payload, size_t len) 
             }
 
             // empty function. It's a command then. Find the command from the json and call it directly.
-            StaticJsonDocument<EMSESP_MAX_JSON_SIZE_SMALL> doc;
+            DynamicJsonDocument doc(EMSESP_MAX_JSON_SIZE_SMALL);
+            //StaticJsonDocument<EMSESP_MAX_JSON_SIZE_SMALL> doc;
             DeserializationError                           error = deserializeJson(doc, message);
             if (error) {
                 LOG_ERROR(F("MQTT error: payload %s, error %s"), message, error.c_str());
@@ -499,7 +501,8 @@ void Mqtt::on_connect() {
     // first time to connect
     if (connectcount_ == 1) {
         // send info topic appended with the version information as JSON
-        StaticJsonDocument<EMSESP_MAX_JSON_SIZE_SMALL> doc;
+        DynamicJsonDocument doc(EMSESP_MAX_JSON_SIZE_SMALL);
+        //StaticJsonDocument<EMSESP_MAX_JSON_SIZE_SMALL> doc;
         doc["event"]   = FJSON("start");
         doc["version"] = EMSESP_APP_VERSION;
 #ifndef EMSESP_STANDALONE
@@ -527,26 +530,33 @@ void Mqtt::on_connect() {
 // homeassistant/sensor/ems-esp/status/config
 // all the values from the heartbeat payload will be added as attributes to the entity state
 void Mqtt::ha_status() {
-    StaticJsonDocument<EMSESP_MAX_JSON_SIZE_HA_CONFIG> doc;
+    DynamicJsonDocument doc(EMSESP_MAX_JSON_SIZE_HA_CONFIG);
+    //StaticJsonDocument<EMSESP_MAX_JSON_SIZE_HA_CONFIG> doc;
 
-    doc["name"]    = FJSON("EMS-ESP status");
-    doc["uniq_id"] = FJSON("status");
+    char temp[128];
+    snprintf_P(temp, sizeof(temp), PSTR("%s status"), Mqtt::base().c_str());
+    doc["name"]    = temp;
+    snprintf_P(temp, sizeof(temp), PSTR("%s-status"), Mqtt::base().c_str());
+    doc["uniq_id"] = temp;
     doc["~"]       = mqtt_base_.c_str(); // ems-esp
     // doc["avty_t"]      = FJSON("~/status");
     doc["json_attr_t"] = FJSON("~/heartbeat");
     doc["stat_t"]      = FJSON("~/heartbeat");
     doc["val_tpl"]     = FJSON("{{value_json['status']}}");
-    doc["ic"]          = FJSON("mdi:home-thermometer-outline");
+    doc["ic"]          = FJSON("mdi:home-automation");
 
     JsonObject dev = doc.createNestedObject("dev");
-    dev["name"]    = FJSON("EMS-ESP");
-    dev["sw"]      = EMSESP_APP_VERSION;
-    dev["mf"]      = FJSON("proddy");
-    dev["mdl"]     = FJSON("EMS-ESP");
-    JsonArray ids  = dev.createNestedArray("ids");
-    ids.add("ems-esp");
+    snprintf_P(temp, sizeof(temp), PSTR("%s"), Mqtt::base().c_str());
 
-    Mqtt::publish_ha(F("homeassistant/sensor/ems-esp/status/config"), doc.as<JsonObject>()); // publish the config payload with retain flag
+    dev["name"]    = temp;
+    dev["sw"]      = EMSESP_APP_VERSION;
+    dev["mf"]      = FJSON("proddy/harrymayr");
+    dev["mdl"]     = temp;
+    JsonArray ids  = dev.createNestedArray("ids");
+    ids.add(temp);
+    snprintf_P(temp, sizeof(temp), PSTR("homeassistant/sensor/%s/status/config"), Mqtt::base().c_str());
+
+    Mqtt::publish_ha(temp, doc.as<JsonObject>()); // publish the config payload with retain flag
 }
 
 // add sub or pub task to the queue.
@@ -761,9 +771,15 @@ void Mqtt::register_mqtt_ha_binary_sensor(const __FlashStringHelper * name, cons
 
     // StaticJsonDocument<EMSESP_MAX_JSON_SIZE_HA_CONFIG> doc;
     DynamicJsonDocument doc(EMSESP_MAX_JSON_SIZE_HA_CONFIG);
+    // build unique identifier, replacing all . with _ as not to break HA
+    std::string uniq(50, '\0');
+    snprintf_P(&uniq[0], uniq.capacity() + 1, PSTR("%s_%s"), mqtt_base_.c_str(), entity);
+    std::replace(uniq.begin(), uniq.end(), '.', '_');
 
-    doc["name"]    = name;
-    doc["uniq_id"] = entity;
+    char temp[50];
+    snprintf_P(temp, sizeof(temp), PSTR("%s %s"), mqtt_base_.c_str(), name);
+    doc["name"]    = temp;
+    doc["uniq_id"] = uniq;
 
     char state_t[50];
     snprintf_P(state_t, sizeof(state_t), PSTR("%s/%s"), mqtt_base_.c_str(), entity);
@@ -784,12 +800,11 @@ void Mqtt::register_mqtt_ha_binary_sensor(const __FlashStringHelper * name, cons
 
     JsonObject dev = doc.createNestedObject("dev");
     JsonArray  ids = dev.createNestedArray("ids");
-    char       ha_device[40];
-    snprintf_P(ha_device, sizeof(ha_device), PSTR("ems-esp-%s"), EMSdevice::device_type_2_device_name(device_type).c_str());
-    ids.add(ha_device);
-
     char topic[MQTT_TOPIC_MAX_SIZE];
-    snprintf_P(topic, sizeof(topic), PSTR("homeassistant/binary_sensor/ems-esp/%s/config"), entity);
+    snprintf_P(topic, sizeof(topic), PSTR("%s-%s"), mqtt_base_.c_str(), EMSdevice::device_type_2_device_name(device_type).c_str());
+    ids.add(topic);
+
+    snprintf_P(topic, sizeof(topic), PSTR("homeassistant/binary_sensor/%s/config"), entity);
 
     publish_ha(topic, doc.as<JsonObject>());
 }
@@ -803,7 +818,9 @@ void Mqtt::register_mqtt_ha_sensor(const char *                prefix,
                                    const uint8_t               device_type,
                                    const char *                entity,
                                    const __FlashStringHelper * uom,
-                                   const __FlashStringHelper * icon) {
+                                   const __FlashStringHelper * icon,
+                                   const __FlashStringHelper * state_class,
+                                   const __FlashStringHelper * device_class) {
     if (mqtt_format() != Format::HA) {
         return;
     }
@@ -824,17 +841,25 @@ void Mqtt::register_mqtt_ha_sensor(const char *                prefix,
 
     // build unique identifier, replacing all . with _ as not to break HA
     std::string uniq(50, '\0');
-    snprintf_P(&uniq[0], uniq.capacity() + 1, PSTR("%s_%s"), device_name, new_entity);
+    if (device_type != EMSdevice::HEARTBEAT)
+        snprintf_P(&uniq[0], uniq.capacity() + 1, PSTR("%s_%s_%s"), mqtt_base_.c_str(), device_name, new_entity);
+    else
+        snprintf_P(&uniq[0], uniq.capacity() + 1, PSTR("%s_system_%s"), mqtt_base_.c_str(), new_entity);
     std::replace(uniq.begin(), uniq.end(), '.', '_');
 
     // topic
     char topic[MQTT_TOPIC_MAX_SIZE];
-    snprintf_P(topic, sizeof(topic), PSTR("homeassistant/sensor/ems-esp/%s/config"), uniq.c_str());
+    if (device_type != EMSdevice::HEARTBEAT)
+        snprintf_P(topic, sizeof(topic), PSTR("homeassistant/sensor/%s/config"), uniq.c_str());
+    else
+        snprintf_P(topic, sizeof(topic), PSTR("homeassistant/sensor/%s/%s/config"), mqtt_base_.c_str(), uniq.c_str());
 
     // state topic
     char stat_t[MQTT_TOPIC_MAX_SIZE];
     if (suffix != nullptr) {
         snprintf_P(stat_t, sizeof(stat_t), PSTR("%s/%s_data%s"), mqtt_base_.c_str(), device_name, uuid::read_flash_string(suffix).c_str());
+    } else if (device_type == EMSdevice::HEARTBEAT) {
+        snprintf_P(stat_t, sizeof(stat_t), PSTR("%s/%s"), mqtt_base_.c_str(), device_name);
     } else {
         snprintf_P(stat_t, sizeof(stat_t), PSTR("%s/%s_data"), mqtt_base_.c_str(), device_name);
     }
@@ -845,21 +870,35 @@ void Mqtt::register_mqtt_ha_sensor(const char *                prefix,
 
     // ha device
     char ha_device[40];
-    snprintf_P(ha_device, sizeof(ha_device), PSTR("ems-esp-%s"), device_name);
+    if (device_type == EMSdevice::HEARTBEAT)
+       snprintf_P(ha_device, sizeof(ha_device), PSTR("%s"), mqtt_base_.c_str());
+    else
+       snprintf_P(ha_device, sizeof(ha_device), PSTR("%s-%s"), mqtt_base_.c_str(), device_name);
 
     // name
     char new_name[50];
-    if (prefix != nullptr) {
-        snprintf_P(new_name, sizeof(new_name), PSTR("%s %s %s"), device_name, prefix, uuid::read_flash_string(name).c_str());
-    } else {
-        snprintf_P(new_name, sizeof(new_name), PSTR("%s %s"), device_name, uuid::read_flash_string(name).c_str());
-    }
+    snprintf_P(new_name, sizeof(new_name), PSTR("%s %s %s"), mqtt_base_.c_str(), device_name, uuid::read_flash_string(name).c_str());
     new_name[0] = toupper(new_name[0]); // capitalize first letter
 
-    doc["name"]    = new_name;
-    doc["uniq_id"] = uniq;
+    if (device_type == EMSdevice::HEARTBEAT){
+        doc["name"]      = name;
+        doc["object_id"] = uniq;
+    }
+    else {
+        doc["name"]      = new_name;
+        if (prefix != nullptr) 
+            snprintf_P(new_name, sizeof(new_name), PSTR("% s%s %s %s"), mqtt_base_.c_str(), device_name, prefix, uuid::read_flash_string(name).c_str());
+        doc["object_id"] = new_name;
+    }
+    doc["uniq_id"]   = uniq;
     if (uom != nullptr) {
         doc["unit_of_meas"] = uom;
+    }
+    if (device_class != nullptr) {
+        doc["dev_cla"] = device_class;
+    }
+    if (state_class != nullptr) {
+        doc["stat_cla"] = state_class;
     }
     doc["stat_t"]  = stat_t;
     doc["val_tpl"] = val_tpl;

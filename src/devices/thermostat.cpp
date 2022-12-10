@@ -17,7 +17,6 @@
  */
 
 #include "thermostat.h"
-
 namespace emsesp {
 
 REGISTER_FACTORY(Thermostat, EMSdevice::DeviceType::THERMOSTAT);
@@ -34,169 +33,172 @@ Thermostat::Thermostat(uint8_t device_type, uint8_t device_id, uint8_t product_i
 
     uint8_t model = this->model();
 
-    // if we're on auto mode, register this thermostat if it has a device id of 0x10, 0x17 or 0x18
-    // or if its the master thermostat we defined
-    // see https://github.com/emsesp/EMS-ESP/issues/362#issuecomment-629628161
-    if ((master_thermostat == device_id)
-        || ((master_thermostat == EMSESP_DEFAULT_MASTER_THERMOSTAT) && (device_id < 0x19)
-            && ((actual_master_thermostat == EMSESP_DEFAULT_MASTER_THERMOSTAT) || (device_id < actual_master_thermostat)))) {
-        EMSESP::actual_master_thermostat(device_id);
-        actual_master_thermostat = device_id;
-        reserve_mem(15); // reserve some space for the telegram registries, to avoid memory fragmentation
+    if (EMSbus::tx_mode() <= EMS_TXMODE_HW) {
+        // if we're on auto mode, register this thermostat if it has a device id of 0x10, 0x17 or 0x18
+        // or if its the master thermostat we defined
+        // see https://github.com/emsesp/EMS-ESP/issues/362#issuecomment-629628161
+        if ((master_thermostat == device_id)
+            || ((master_thermostat == EMSESP_DEFAULT_MASTER_THERMOSTAT) && (device_id < 0x19)
+                && ((actual_master_thermostat == EMSESP_DEFAULT_MASTER_THERMOSTAT) || (device_id < actual_master_thermostat)))) {
+            EMSESP::actual_master_thermostat(device_id);
+            actual_master_thermostat = device_id;
+            reserve_mem(15); // reserve some space for the telegram registries, to avoid memory fragmentation
 
-        // common telegram handlers
-        register_telegram_type(EMS_TYPE_RCOutdoorTemp, F("RCOutdoorTemp"), false, [&](std::shared_ptr<const Telegram> t) { process_RCOutdoorTemp(t); });
-        register_telegram_type(EMS_TYPE_RCTime, F("RCTime"), false, [&](std::shared_ptr<const Telegram> t) { process_RCTime(t); });
-        register_telegram_type(0xA2, F("RCError"), false, [&](std::shared_ptr<const Telegram> t) { process_RCError(t); });
-        register_telegram_type(0x12, F("RCErrorMessage"), false, [&](std::shared_ptr<const Telegram> t) { process_RCErrorMessage(t); });
-    }
-    // RC10
-    if (model == EMSdevice::EMS_DEVICE_FLAG_RC10) {
-        monitor_typeids = {0xB1};
-        set_typeids     = {0xB0};
-        for (uint8_t i = 0; i < monitor_typeids.size(); i++) {
-            register_telegram_type(monitor_typeids[i], F("RC10Monitor"), false, [&](std::shared_ptr<const Telegram> t) { process_RC10Monitor(t); });
-            register_telegram_type(set_typeids[i], F("RC10Set"), false, [&](std::shared_ptr<const Telegram> t) { process_RC10Set(t); });
+            // common telegram handlers
+            register_telegram_type(EMS_TYPE_RCOutdoorTemp, F("RCOutdoorTemp"), false, [&](std::shared_ptr<const Telegram> t) { process_RCOutdoorTemp(t); });
+            register_telegram_type(EMS_TYPE_RCTime, F("RCTime"), false, [&](std::shared_ptr<const Telegram> t) { process_RCTime(t); });
+            register_telegram_type(0xA2, F("RCError"), false, [&](std::shared_ptr<const Telegram> t) { process_RCError(t); });
+            register_telegram_type(0x12, F("RCErrorMessage"), false, [&](std::shared_ptr<const Telegram> t) { process_RCErrorMessage(t); });
         }
-
-        // RC35
-    } else if ((model == EMSdevice::EMS_DEVICE_FLAG_RC35) || (model == EMSdevice::EMS_DEVICE_FLAG_RC30_1)) {
-        monitor_typeids = {0x3E, 0x48, 0x52, 0x5C};
-        set_typeids     = {0x3D, 0x47, 0x51, 0x5B};
-        timer_typeids   = {0x3F, 0x49, 0x53, 0x5D};
-        for (uint8_t i = 0; i < monitor_typeids.size(); i++) {
-            register_telegram_type(monitor_typeids[i], F("RC35Monitor"), false, [&](std::shared_ptr<const Telegram> t) { process_RC35Monitor(t); });
-            register_telegram_type(set_typeids[i], F("RC35Set"), false, [&](std::shared_ptr<const Telegram> t) { process_RC35Set(t); });
-            register_telegram_type(timer_typeids[i], F("RC35Timer"), false, [&](std::shared_ptr<const Telegram> t) { process_RC35Timer(t); });
-        }
-        register_telegram_type(EMS_TYPE_IBASettings, F("IBASettings"), true, [&](std::shared_ptr<const Telegram> t) { process_IBASettings(t); });
-        register_telegram_type(EMS_TYPE_wwSettings, F("WWSettings"), true, [&](std::shared_ptr<const Telegram> t) { process_RC35wwSettings(t); });
-
-        // RC20
-    } else if (model == EMSdevice::EMS_DEVICE_FLAG_RC20) {
-        monitor_typeids = {0x91};
-        set_typeids     = {0xA8};
-        if (actual_master_thermostat == device_id) {
+        // RC10
+        if (model == EMSdevice::EMS_DEVICE_FLAG_RC10) {
+            monitor_typeids = {0xB1};
+            set_typeids     = {0xB0};
             for (uint8_t i = 0; i < monitor_typeids.size(); i++) {
-                register_telegram_type(monitor_typeids[i], F("RC20Monitor"), false, [&](std::shared_ptr<const Telegram> t) { process_RC20Monitor(t); });
-                register_telegram_type(set_typeids[i], F("RC20Set"), false, [&](std::shared_ptr<const Telegram> t) { process_RC20Set(t); });
+                register_telegram_type(monitor_typeids[i], F("RC10Monitor"), false, [&](std::shared_ptr<const Telegram> t) { process_RC10Monitor(t); });
+                register_telegram_type(set_typeids[i], F("RC10Set"), false, [&](std::shared_ptr<const Telegram> t) { process_RC10Set(t); });
             }
-        } else {
-            register_telegram_type(0xAF, F("RC20Remote"), false, [&](std::shared_ptr<const Telegram> t) { process_RC20Remote(t); });
-        }
-        // RC20 newer
-    } else if (model == EMSdevice::EMS_DEVICE_FLAG_RC20_2) {
-        monitor_typeids = {0xAE};
-        set_typeids     = {0xAD};
-        if (actual_master_thermostat == device_id) {
+
+            // RC35
+        } else if ((model == EMSdevice::EMS_DEVICE_FLAG_RC35) || (model == EMSdevice::EMS_DEVICE_FLAG_RC30_1)) {
+            monitor_typeids = {0x3E, 0x48, 0x52, 0x5C};
+            set_typeids     = {0x3D, 0x47, 0x51, 0x5B};
+            timer_typeids   = {0x3F, 0x49, 0x53, 0x5D};
             for (uint8_t i = 0; i < monitor_typeids.size(); i++) {
-                register_telegram_type(monitor_typeids[i], F("RC20Monitor"), false, [&](std::shared_ptr<const Telegram> t) { process_RC20Monitor_2(t); });
-                register_telegram_type(set_typeids[i], F("RC20Set"), false, [&](std::shared_ptr<const Telegram> t) { process_RC20Set_2(t); });
+                register_telegram_type(monitor_typeids[i], F("RC35Monitor"), false, [&](std::shared_ptr<const Telegram> t) { process_RC35Monitor(t); });
+                register_telegram_type(set_typeids[i], F("RC35Set"), false, [&](std::shared_ptr<const Telegram> t) { process_RC35Set(t); });
+                register_telegram_type(timer_typeids[i], F("RC35Timer"), false, [&](std::shared_ptr<const Telegram> t) { process_RC35Timer(t); });
             }
-        } else {
-            register_telegram_type(0xAF, F("RC20Remote"), false, [&](std::shared_ptr<const Telegram> t) { process_RC20Remote(t); });
-        }
-        // RC30
-    } else if (model == EMSdevice::EMS_DEVICE_FLAG_RC30) {
-        monitor_typeids = {0x41};
-        set_typeids     = {0xA7};
-        for (uint8_t i = 0; i < monitor_typeids.size(); i++) {
-            register_telegram_type(monitor_typeids[i], F("RC30Monitor"), false, [&](std::shared_ptr<const Telegram> t) { process_RC30Monitor(t); });
-            register_telegram_type(set_typeids[i], F("RC30Set"), false, [&](std::shared_ptr<const Telegram> t) { process_RC30Set(t); });
-        }
+            register_telegram_type(EMS_TYPE_IBASettings, F("IBASettings"), true, [&](std::shared_ptr<const Telegram> t) { process_IBASettings(t); });
+            register_telegram_type(EMS_TYPE_wwSettings, F("WWSettings"), true, [&](std::shared_ptr<const Telegram> t) { process_RC35wwSettings(t); });
 
-        // EASY
-    } else if (model == EMSdevice::EMS_DEVICE_FLAG_EASY) {
-        monitor_typeids = {0x0A};
-        set_typeids     = {};
-        register_telegram_type(monitor_typeids[0], F("EasyMonitor"), true, [&](std::shared_ptr<const Telegram> t) { process_EasyMonitor(t); });
-
-    } else if (model == EMSdevice::EMS_DEVICE_FLAG_CRF) {
-        monitor_typeids = {0x02A5, 0x02A6, 0x02A7, 0x02A8};
-        set_typeids     = {};
-        for (uint8_t i = 0; i < monitor_typeids.size(); i++) {
-            register_telegram_type(monitor_typeids[i], F("CRFMonitor"), false, [&](std::shared_ptr<const Telegram> t) { process_CRFMonitor(t); });
-        }
-
-        // RC300/RC100
-    } else if ((model == EMSdevice::EMS_DEVICE_FLAG_RC300) || (model == EMSdevice::EMS_DEVICE_FLAG_RC100)) {
-        monitor_typeids = {0x02A5, 0x02A6, 0x02A7, 0x02A8};
-        set_typeids     = {0x02B9, 0x02BA, 0x02BB, 0x02BC};
-        summer_typeids  = {0x02AF, 0x02B0, 0x02B1, 0x02B2};
-        curve_typeids   = {0x029B, 0x029C, 0x029D, 0x029E};
-        for (uint8_t i = 0; i < monitor_typeids.size(); i++) {
-            register_telegram_type(monitor_typeids[i], F("RC300Monitor"), false, [&](std::shared_ptr<const Telegram> t) { process_RC300Monitor(t); });
-            register_telegram_type(set_typeids[i], F("RC300Set"), false, [&](std::shared_ptr<const Telegram> t) { process_RC300Set(t); });
-            register_telegram_type(summer_typeids[i], F("RC300Summer"), false, [&](std::shared_ptr<const Telegram> t) { process_RC300Summer(t); });
-            register_telegram_type(curve_typeids[i], F("RC300Curves"), false, [&](std::shared_ptr<const Telegram> t) { process_RC300Curve(t); });
-        }
-        register_telegram_type(0x2F5, F("RC300WWmode"), true, [&](std::shared_ptr<const Telegram> t) { process_RC300WWmode(t); });
-        register_telegram_type(0x31B, F("RC300WWtemp"), true, [&](std::shared_ptr<const Telegram> t) { process_RC300WWtemp(t); });
-        register_telegram_type(0x31D, F("RC300WWmode2"), false, [&](std::shared_ptr<const Telegram> t) { process_RC300WWmode2(t); });
-        register_telegram_type(0x31E, F("RC300WWmode2"), false, [&](std::shared_ptr<const Telegram> t) { process_RC300WWmode2(t); });
-        register_telegram_type(0x23A, F("RC300OutdoorTemp"), true, [&](std::shared_ptr<const Telegram> t) { process_RC300OutdoorTemp(t); });
-        register_telegram_type(0x267, F("RC300Floordry"), false, [&](std::shared_ptr<const Telegram> t) { process_RC300Floordry(t); });
-        register_telegram_type(0x240, F("RC300Settings"), true, [&](std::shared_ptr<const Telegram> t) { process_RC300Settings(t); });
-
-        // JUNKERS/HT3
-    } else if (model == EMSdevice::EMS_DEVICE_FLAG_JUNKERS) {
-        monitor_typeids = {0x016F, 0x0170, 0x0171, 0x0172};
-        for (uint8_t i = 0; i < monitor_typeids.size(); i++) {
-            register_telegram_type(monitor_typeids[i], F("JunkersMonitor"), false, [&](std::shared_ptr<const Telegram> t) { process_JunkersMonitor(t); });
-        }
-
-        if (has_flags(EMS_DEVICE_FLAG_JUNKERS_OLD)) {
-            // FR120, FR100
-            set_typeids = {0x0179, 0x017A, 0x017B, 0x017C};
+            // RC20
+        } else if (model == EMSdevice::EMS_DEVICE_FLAG_RC20) {
+            monitor_typeids = {0x91};
+            set_typeids     = {0xA8};
+            if (actual_master_thermostat == device_id) {
+                for (uint8_t i = 0; i < monitor_typeids.size(); i++) {
+                    register_telegram_type(monitor_typeids[i], F("RC20Monitor"), false, [&](std::shared_ptr<const Telegram> t) { process_RC20Monitor(t); });
+                    register_telegram_type(set_typeids[i], F("RC20Set"), false, [&](std::shared_ptr<const Telegram> t) { process_RC20Set(t); });
+                }
+            } else {
+                register_telegram_type(0xAF, F("RC20Remote"), false, [&](std::shared_ptr<const Telegram> t) { process_RC20Remote(t); });
+            }
+            // RC20 newer
+        } else if (model == EMSdevice::EMS_DEVICE_FLAG_RC20_2) {
+            monitor_typeids = {0xAE};
+            set_typeids     = {0xAD};
+            if (actual_master_thermostat == device_id) {
+                for (uint8_t i = 0; i < monitor_typeids.size(); i++) {
+                    register_telegram_type(monitor_typeids[i], F("RC20Monitor"), false, [&](std::shared_ptr<const Telegram> t) { process_RC20Monitor_2(t); });
+                    register_telegram_type(set_typeids[i], F("RC20Set"), false, [&](std::shared_ptr<const Telegram> t) { process_RC20Set_2(t); });
+                }
+            } else {
+                register_telegram_type(0xAF, F("RC20Remote"), false, [&](std::shared_ptr<const Telegram> t) { process_RC20Remote(t); });
+            }
+            // RC30
+        } else if (model == EMSdevice::EMS_DEVICE_FLAG_RC30) {
+            monitor_typeids = {0x41};
+            set_typeids     = {0xA7};
             for (uint8_t i = 0; i < monitor_typeids.size(); i++) {
-                register_telegram_type(set_typeids[i], F("JunkersSet"), false, [&](std::shared_ptr<const Telegram> t) { process_JunkersSet2(t); });
+                register_telegram_type(monitor_typeids[i], F("RC30Monitor"), false, [&](std::shared_ptr<const Telegram> t) { process_RC30Monitor(t); });
+                register_telegram_type(set_typeids[i], F("RC30Set"), false, [&](std::shared_ptr<const Telegram> t) { process_RC30Set(t); });
             }
-        } else {
-            set_typeids = {0x0165, 0x0166, 0x0167, 0x0168};
+
+            // EASY
+        } else if (model == EMSdevice::EMS_DEVICE_FLAG_EASY) {
+            monitor_typeids = {0x0A};
+            set_typeids     = {};
+            register_telegram_type(monitor_typeids[0], F("EasyMonitor"), true, [&](std::shared_ptr<const Telegram> t) { process_EasyMonitor(t); });
+
+        } else if (model == EMSdevice::EMS_DEVICE_FLAG_CRF) {
+            monitor_typeids = {0x02A5, 0x02A6, 0x02A7, 0x02A8};
+            set_typeids     = {};
             for (uint8_t i = 0; i < monitor_typeids.size(); i++) {
-                register_telegram_type(set_typeids[i], F("JunkersSet"), false, [&](std::shared_ptr<const Telegram> t) { process_JunkersSet(t); });
+                register_telegram_type(monitor_typeids[i], F("CRFMonitor"), false, [&](std::shared_ptr<const Telegram> t) { process_CRFMonitor(t); });
+            }
+
+            // RC300/RC100
+        } else if ((model == EMSdevice::EMS_DEVICE_FLAG_RC300) || (model == EMSdevice::EMS_DEVICE_FLAG_RC100)) {
+            monitor_typeids = {0x02A5, 0x02A6, 0x02A7, 0x02A8};
+            set_typeids     = {0x02B9, 0x02BA, 0x02BB, 0x02BC};
+            summer_typeids  = {0x02AF, 0x02B0, 0x02B1, 0x02B2};
+            curve_typeids   = {0x029B, 0x029C, 0x029D, 0x029E};
+            for (uint8_t i = 0; i < monitor_typeids.size(); i++) {
+                register_telegram_type(monitor_typeids[i], F("RC300Monitor"), false, [&](std::shared_ptr<const Telegram> t) { process_RC300Monitor(t); });
+                register_telegram_type(set_typeids[i], F("RC300Set"), false, [&](std::shared_ptr<const Telegram> t) { process_RC300Set(t); });
+                register_telegram_type(summer_typeids[i], F("RC300Summer"), false, [&](std::shared_ptr<const Telegram> t) { process_RC300Summer(t); });
+                register_telegram_type(curve_typeids[i], F("RC300Curves"), false, [&](std::shared_ptr<const Telegram> t) { process_RC300Curve(t); });
+            }
+            register_telegram_type(0x2F5, F("RC300WWmode"), true, [&](std::shared_ptr<const Telegram> t) { process_RC300WWmode(t); });
+            register_telegram_type(0x31B, F("RC300WWtemp"), true, [&](std::shared_ptr<const Telegram> t) { process_RC300WWtemp(t); });
+            register_telegram_type(0x31D, F("RC300WWmode2"), false, [&](std::shared_ptr<const Telegram> t) { process_RC300WWmode2(t); });
+            register_telegram_type(0x31E, F("RC300WWmode2"), false, [&](std::shared_ptr<const Telegram> t) { process_RC300WWmode2(t); });
+            register_telegram_type(0x23A, F("RC300OutdoorTemp"), true, [&](std::shared_ptr<const Telegram> t) { process_RC300OutdoorTemp(t); });
+            register_telegram_type(0x267, F("RC300Floordry"), false, [&](std::shared_ptr<const Telegram> t) { process_RC300Floordry(t); });
+            register_telegram_type(0x240, F("RC300Settings"), true, [&](std::shared_ptr<const Telegram> t) { process_RC300Settings(t); });
+
+            // JUNKERS/HT3
+        } else if (model == EMSdevice::EMS_DEVICE_FLAG_JUNKERS) {
+            monitor_typeids = {0x016F, 0x0170, 0x0171, 0x0172};
+            for (uint8_t i = 0; i < monitor_typeids.size(); i++) {
+                register_telegram_type(monitor_typeids[i], F("JunkersMonitor"), false, [&](std::shared_ptr<const Telegram> t) { process_JunkersMonitor(t); });
+            }
+
+            if (has_flags(EMS_DEVICE_FLAG_JUNKERS_OLD)) {
+                // FR120, FR100
+                set_typeids = {0x0179, 0x017A, 0x017B, 0x017C};
+                for (uint8_t i = 0; i < monitor_typeids.size(); i++) {
+                    register_telegram_type(set_typeids[i], F("JunkersSet"), false, [&](std::shared_ptr<const Telegram> t) { process_JunkersSet2(t); });
+                }
+            } else {
+                set_typeids = {0x0165, 0x0166, 0x0167, 0x0168};
+                for (uint8_t i = 0; i < monitor_typeids.size(); i++) {
+                    register_telegram_type(set_typeids[i], F("JunkersSet"), false, [&](std::shared_ptr<const Telegram> t) { process_JunkersSet(t); });
+                }
             }
         }
-    }
 
-    if (actual_master_thermostat != device_id) {
-        LOG_DEBUG(F("Adding new thermostat with device ID 0x%02X"), device_id);
-        return; // don't fetch data if more than 1 thermostat
-    }
-    LOG_DEBUG(F("Adding new thermostat with device ID 0x%02X (as master)"), device_id);
-    add_commands();
+        if (actual_master_thermostat != device_id) {
+            LOG_DEBUG(F("Adding new thermostat with device ID 0x%02X"), device_id);
+            return; // don't fetch data if more than 1 thermostat
+        }
+        LOG_DEBUG(F("Adding new thermostat with device ID 0x%02X (as master)"), device_id);
+        add_commands();
 
-    // reserve some memory for the heating circuits (max 4 to start with)
-    heating_circuits_.reserve(4);
+        // reserve some memory for the heating circuits (max 4 to start with)
+        heating_circuits_.reserve(4);
 
-    // only for for the master-thermostat, go a query all the heating circuits. This is only done once.
-    // The automatic fetch will from now on only update the active heating circuits
-    for (uint8_t i = 0; i < monitor_typeids.size(); i++) {
-        EMSESP::send_read_request(monitor_typeids[i], device_id);
-    }
+        // only for for the master-thermostat, go a query all the heating circuits. This is only done once.
+        // The automatic fetch will from now on only update the active heating circuits
+        for (uint8_t i = 0; i < monitor_typeids.size(); i++) {
+            EMSESP::send_read_request(monitor_typeids[i], device_id);
+        }
 
-    for (uint8_t i = 0; i < set_typeids.size(); i++) {
-        EMSESP::send_read_request(set_typeids[i], device_id);
-    }
+        for (uint8_t i = 0; i < set_typeids.size(); i++) {
+            EMSESP::send_read_request(set_typeids[i], device_id);
+        }
 
-    /* do not flood tx-queue now, these values are fetched later by toggle fetch
-    for (uint8_t i = 0; i < summer_typeids.size(); i++) {
-        EMSESP::send_read_request(summer_typeids[i], device_id);
+        /* do not flood tx-queue now, these values are fetched later by toggle fetch
+        for (uint8_t i = 0; i < summer_typeids.size(); i++) {
+            EMSESP::send_read_request(summer_typeids[i], device_id);
+        }
+        for (uint8_t i = 0; i < curve_typeids.size(); i++) {
+            EMSESP::send_read_request(curve_typeids[i], device_id);
+        }
+        for (uint8_t i = 0; i < timer_typeids.size(); i++) {
+            EMSESP::send_read_request(timer_typeids[i], device_id);
+        }
+        */
+        EMSESP::send_read_request(0x12, device_id); // read last error (only published on errors)
+        EMSESP::send_read_request(0xA2, device_id); // actual errorCode (published on errors and very rarely)
     }
-    for (uint8_t i = 0; i < curve_typeids.size(); i++) {
-        EMSESP::send_read_request(curve_typeids[i], device_id);
-    }
-    for (uint8_t i = 0; i < timer_typeids.size(); i++) {
-        EMSESP::send_read_request(timer_typeids[i], device_id);
-    }
-    */
-    EMSESP::send_read_request(0x12, device_id); // read last error (only published on errors)
-    EMSESP::send_read_request(0xA2, device_id); // actual errorCode (published on errors and very rarely)
 }
 
 // prepare data for Web UI
 void Thermostat::device_info_web(JsonArray & root, uint8_t & part) {
-    StaticJsonDocument<EMSESP_MAX_JSON_SIZE_LARGE> doc;
+    DynamicJsonDocument doc(EMSESP_MAX_JSON_SIZE_LARGE);
+    //StaticJsonDocument<EMSESP_MAX_JSON_SIZE_LARGE> doc;
     JsonObject                                     json = doc.to<JsonObject>();
     if (part == 0) {
         if (export_values_main(json)) {
@@ -307,7 +309,8 @@ void Thermostat::publish_values(JsonObject & json, bool force) {
 
     // if MQTT is in single mode send out the main data to the thermostat_data topic
     if (Mqtt::mqtt_format() == Mqtt::Format::SINGLE) {
-        StaticJsonDocument<EMSESP_MAX_JSON_SIZE_MEDIUM> doc;
+        DynamicJsonDocument doc(EMSESP_MAX_JSON_SIZE_MEDIUM);
+        //StaticJsonDocument<EMSESP_MAX_JSON_SIZE_MEDIUM> doc;
         JsonObject                                      json_data = doc.to<JsonObject>();
         if (export_values_main(json_data)) {
             Mqtt::publish(F("thermostat_data"), json_data);
@@ -331,7 +334,8 @@ void Thermostat::publish_values(JsonObject & json, bool force) {
         }
     }
 
-    StaticJsonDocument<EMSESP_MAX_JSON_SIZE_LARGE> doc;
+    DynamicJsonDocument doc(EMSESP_MAX_JSON_SIZE_LARGE);
+    //StaticJsonDocument<EMSESP_MAX_JSON_SIZE_LARGE> doc;
     JsonObject                                     json_data = doc.to<JsonObject>();
 
     // get the thermostat data.
@@ -819,24 +823,28 @@ std::shared_ptr<Thermostat::HeatingCircuit> Thermostat::heating_circuit(std::sha
 // publish config topic for HA MQTT Discovery for main thermostat values
 // homeassistant/sensor/ems-esp/thermostat/config
 void Thermostat::register_mqtt_ha_config() {
-    StaticJsonDocument<EMSESP_MAX_JSON_SIZE_HA_CONFIG> doc;
+    DynamicJsonDocument doc(EMSESP_MAX_JSON_SIZE_HA_CONFIG);
+    //StaticJsonDocument<EMSESP_MAX_JSON_SIZE_HA_CONFIG> doc;
     doc["uniq_id"] = FJSON("thermostat");
     doc["ic"]      = FJSON("mdi:home-thermometer-outline");
 
-    char stat_t[128];
-    snprintf_P(stat_t, sizeof(stat_t), PSTR("%s/thermostat_data"), Mqtt::base().c_str());
-    doc["stat_t"] = stat_t;
+    char temp[128];
+    snprintf_P(temp, sizeof(temp), PSTR("%s/thermostat_data"), Mqtt::base().c_str());
+    doc["stat_t"] = temp;
 
     doc["name"]    = FJSON("Thermostat Status");
     doc["val_tpl"] = FJSON("{{value_json.dateTime}}"); // default value - must have one, so we use dateTime
     JsonObject dev = doc.createNestedObject("dev");
-    dev["name"]    = FJSON("EMS-ESP Thermostat");
+    snprintf_P(temp, sizeof(temp), PSTR("%s Thermostat"), Mqtt::base().c_str());
+    dev["name"]    = temp;
     dev["sw"]      = EMSESP_APP_VERSION;
     dev["mf"]      = brand_to_string();
     dev["mdl"]     = name();
     JsonArray ids  = dev.createNestedArray("ids");
-    ids.add("ems-esp-thermostat");
-    Mqtt::publish_ha(F("homeassistant/sensor/ems-esp/thermostat/config"), doc.as<JsonObject>()); // publish the config payload with retain flag
+    snprintf_P(temp, sizeof(temp), PSTR("%s-thermostat"), Mqtt::base().c_str());
+    ids.add(temp);
+    snprintf_P(temp, sizeof(temp), PSTR("homeassistant/sensor/%s/thermostat/config"), Mqtt::base().c_str());
+    Mqtt::publish_ha(temp, doc.as<JsonObject>()); // publish the config payload with retain flag
 
     Mqtt::register_mqtt_ha_sensor(nullptr, nullptr, F_(time), device_type(), "dateTime", nullptr, nullptr);
 
@@ -879,7 +887,8 @@ void Thermostat::register_mqtt_ha_config() {
 // publish config topic for HA MQTT Discovery for each of the heating circuit
 // e.g. homeassistant/climate/ems-esp/thermostat_hc1/config
 void Thermostat::register_mqtt_ha_config(uint8_t hc_num) {
-    StaticJsonDocument<EMSESP_MAX_JSON_SIZE_MEDIUM> doc;
+    DynamicJsonDocument doc(EMSESP_MAX_JSON_SIZE_MEDIUM);
+    //StaticJsonDocument<EMSESP_MAX_JSON_SIZE_MEDIUM> doc;
 
     char str1[20];
     snprintf_P(str1, sizeof(str1), PSTR("Thermostat hc%d"), hc_num);
@@ -904,9 +913,9 @@ void Thermostat::register_mqtt_ha_config(uint8_t hc_num) {
     snprintf_P(mode_str, sizeof(mode_str), PSTR("{{value_json.hc%d.mode}}"), hc_num);
     doc["mode_stat_tpl"] = mode_str;
 
-    char seltemp_str[30];
-    snprintf_P(seltemp_str, sizeof(seltemp_str), PSTR("{{value_json.hc%d.seltemp}}"), hc_num);
-    doc["temp_stat_tpl"] = seltemp_str;
+    char temp[128];
+    snprintf_P(temp, sizeof(temp), PSTR("{{value_json.hc%d.seltemp}}"), hc_num);
+    doc["temp_stat_tpl"] = temp;
 
     char currtemp_str[30];
     snprintf_P(currtemp_str, sizeof(currtemp_str), PSTR("{{value_json.hc%d.hatemp}}"), hc_num);
@@ -923,15 +932,17 @@ void Thermostat::register_mqtt_ha_config(uint8_t hc_num) {
     modes.add("off");
 
     JsonObject dev = doc.createNestedObject("dev");
-    dev["name"]    = FJSON("EMS-ESP Thermostat");
+    snprintf_P(temp, sizeof(temp), PSTR("%s Thermostat"), Mqtt::base().c_str());
+    dev["name"]    = temp;
     dev["sw"]      = EMSESP_APP_VERSION;
     dev["mf"]      = brand_to_string();
     dev["mdl"]     = name();
     JsonArray ids  = dev.createNestedArray("ids");
-    ids.add("ems-esp-thermostat");
+    snprintf_P(temp, sizeof(temp), PSTR("%s-thermostat"), Mqtt::base().c_str());
+    ids.add(temp);
 
     std::string topic(100, '\0');
-    snprintf_P(&topic[0], topic.capacity() + 1, PSTR("homeassistant/climate/ems-esp/thermostat_hc%d/config"), hc_num);
+    snprintf_P(&topic[0], topic.capacity() + 1, PSTR("homeassistant/climate/%s/thermostat_hc%d/config"), Mqtt::base().c_str(), hc_num);
     Mqtt::publish_ha(topic, doc.as<JsonObject>()); // publish the config payload with retain flag
 
     // enable the a special "thermostat_hc<n>" topic to take both mode strings and floats for each of the heating circuits
