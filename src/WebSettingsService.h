@@ -45,6 +45,11 @@
 #define EMSESP_DEFAULT_API_ENABLED false // turn off, because its insecure
 #define EMSESP_DEFAULT_BOOL_FORMAT 1     // on/off
 #define EMSESP_DEFAULT_ANALOG_ENABLED false
+#define EMSESP_DEFAULT_usr_brand EMSdevice::Brand::BUDERUS
+#define EMSESP_DEFAULT_usr_type "UBA4000"
+#define EMSESP_DEFAULT_MIN_BOILER_WH 0 // not set
+#define EMSESP_DEFAULT_MAX_BOILER_WH 0 // not set
+#define EMSESP_DEFAULT_CONV_FACTOR 10300
 
 // Default GPIO PIN definitions
 #if defined(ESP8266)
@@ -89,6 +94,12 @@ class WebSettings {
     bool     api_enabled;
     uint8_t  bool_format;
     bool     analog_enabled;
+    uint8_t  usr_brand;
+    String   usr_type;
+    uint16_t min_boiler_wh;
+    uint16_t max_boiler_wh;
+    uint32_t gas_meter_reading;
+    uint16_t conv_factor;
 
     static void              read(WebSettings & settings, JsonObject & root);
     static StateUpdateResult update(JsonObject & root, WebSettings & settings);

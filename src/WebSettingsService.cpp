@@ -50,6 +50,12 @@ void WebSettings::read(WebSettings & settings, JsonObject & root) {
     root["api_enabled"]          = settings.api_enabled;
     root["bool_format"]          = settings.bool_format;
     root["analog_enabled"]       = settings.analog_enabled;
+    root["usr_brand"]            = settings.usr_brand;
+    root["usr_type"]             = settings.usr_type;
+    root["min_boiler_wh"]        = settings.min_boiler_wh;
+    root["max_boiler_wh"]        = settings.max_boiler_wh;
+    root["gas_meter_reading"]    = settings.gas_meter_reading;
+    root["conv_factor"]           = settings.conv_factor;
 }
 
 StateUpdateResult WebSettings::update(JsonObject & root, WebSettings & settings) {
@@ -128,6 +134,35 @@ StateUpdateResult WebSettings::update(JsonObject & root, WebSettings & settings)
     snprintf_P(&crc_after[0], crc_after.capacity() + 1, PSTR("%d%d"), settings.led_gpio, settings.hide_led);
     if (crc_before != crc_after) {
         add_flags(ChangeFlags::LED);
+    }
+    // iRT
+    snprintf_P(&crc_before[0],
+               crc_before.capacity() + 1,
+               PSTR("%d%s%d%d"),
+               settings.usr_brand,
+               settings.usr_type.c_str(),
+               settings.min_boiler_wh,
+               settings.max_boiler_wh,
+               settings.gas_meter_reading,
+               settings.conv_factor);
+    settings.usr_brand       = root["usr_brand"] | EMSESP_DEFAULT_usr_brand;
+    settings.usr_type        = root["usr_type"] | EMSESP_DEFAULT_usr_type;
+    settings.min_boiler_wh   = root["min_boiler_wh"] | EMSESP_DEFAULT_MIN_BOILER_WH;
+    settings.max_boiler_wh   = root["max_boiler_wh"] | EMSESP_DEFAULT_MAX_BOILER_WH;
+    settings.gas_meter_reading = root["gas_meter_reading"] | 0;
+    settings.conv_factor     = root["conv_factor"] | EMSESP_DEFAULT_CONV_FACTOR;
+
+    snprintf_P(&crc_after[0],
+               crc_after.capacity() + 1,
+               PSTR("%d%s%d%d"),
+               settings.usr_brand,
+               settings.usr_type.c_str(),
+               settings.min_boiler_wh,
+               settings.max_boiler_wh,
+               settings.gas_meter_reading,
+               settings.conv_factor);
+    if (crc_before != crc_after) {
+        add_flags(ChangeFlags::OTHER);
     }
 
     // these both need reboots to be applied

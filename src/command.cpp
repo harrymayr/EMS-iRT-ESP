@@ -102,10 +102,19 @@ void Command::add(const uint8_t device_type, const uint8_t device_id, const __Fl
 void Command::add_with_json(const uint8_t device_type, const __FlashStringHelper * cmd, cmdfunction_json_p cb) {
     // if the command already exists for that device type don't add it
     if (find_command(device_type, uuid::read_flash_string(cmd).c_str()) != nullptr) {
+#if defined(EMSESP_TEST)    
+    LOG_DEBUG(F("Command %s found"), uuid::read_flash_string(cmd).c_str());
+#endif
         return;
     }
 
+#if defined(EMSESP_TEST)    
+    LOG_DEBUG(F("Command %s add"), uuid::read_flash_string(cmd).c_str());
+#endif
     cmdfunctions_.emplace_back(device_type, cmd, nullptr, cb); // add command
+#if defined(EMSESP_TEST)    
+    LOG_DEBUG(F("Command %s added"), uuid::read_flash_string(cmd).c_str());
+#endif
 }
 
 // see if a command exists for that device type

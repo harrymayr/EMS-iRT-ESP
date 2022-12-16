@@ -18,6 +18,12 @@ export interface EMSESPSettings {
   api_enabled: boolean;
   bool_format: number;
   analog_enabled: boolean;
+  usr_brand: number;
+  usr_type: string;
+  min_boiler_wh: number;
+  max_boiler_wh: number;
+  gas_meter_reading: number;
+  conv_factor: number;
   trace_raw: boolean;
 }
 

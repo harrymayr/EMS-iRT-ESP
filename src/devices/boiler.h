@@ -42,6 +42,7 @@ class Boiler : public EMSdevice {
     virtual bool export_values(JsonObject & json, int8_t id = -1);
     virtual void device_info_web(JsonArray & root, uint8_t & part);
     virtual bool updated_values();
+    uint8_t  public_curBurnPow_        = EMS_VALUE_UINT_NOTSET;   // Burner current power %
 
   private:
     static uuid::log::Logger logger_;
@@ -97,7 +98,7 @@ class Boiler : public EMSdevice {
     uint8_t  fanWork_           = EMS_VALUE_BOOL_NOTSET;   // Fan on/off
     uint8_t  ignWork_           = EMS_VALUE_BOOL_NOTSET;   // Ignition on/off
     uint8_t  heatingPump_       = EMS_VALUE_BOOL_NOTSET;   // Boiler heating pump on/off
-    uint8_t  wWHeat_            = EMS_VALUE_BOOL_NOTSET;   // 3-way valve on WW
+    uint8_t  ww3wayValve_       = EMS_VALUE_BOOL_NOTSET;   // 3-way valve on WW
     uint8_t  wWCirc_            = EMS_VALUE_BOOL_NOTSET;   // Circulation on/off
     uint8_t  selBurnPow_        = EMS_VALUE_UINT_NOTSET;   // Burner max power %
     uint8_t  curBurnPow_        = EMS_VALUE_UINT_NOTSET;   // Burner current power %

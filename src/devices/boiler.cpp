@@ -345,8 +345,8 @@ void Boiler::register_mqtt_ha_config_ww() {
     if (Helpers::hasValue(wWCurTemp_)) {
         Mqtt::register_mqtt_ha_sensor(nullptr, F_(mqtt_suffix_ww), F_(wWCurTemp), device_type(), "wWCurTemp", F_(degrees), F_(iconwatertemp));
     }
-    if (Helpers::hasValue(wWHeat_)) {
-        Mqtt::register_mqtt_ha_sensor(nullptr, F_(mqtt_suffix_ww), F_(wWHeat), device_type(), "wWHeat", nullptr, F_(iconvalve));
+    if (Helpers::hasValue(ww3wayValve_)) {
+        Mqtt::register_mqtt_ha_sensor(nullptr, F_(mqtt_suffix_ww), F_(ww3wayValve), device_type(), "ww3wayValve", nullptr, F_(iconvalve));
     }
     if (Helpers::hasValue(wWActivated_)) {
         Mqtt::register_mqtt_ha_sensor(nullptr, F_(mqtt_suffix_ww), F_(wWActivated), device_type(), "wWActivated", nullptr, nullptr);
@@ -498,7 +498,7 @@ void Boiler::device_info_web(JsonArray & root, uint8_t & part) {
         create_value_json(root, F("wWRecharging"), nullptr, F_(wWRecharging), nullptr, json);
         create_value_json(root, F("wWTempOK"), nullptr, F_(wWTempOK), nullptr, json);
         create_value_json(root, F("wWActive"), nullptr, F_(wWActive), nullptr, json);
-        create_value_json(root, F("wWHeat"), nullptr, F_(wWHeat), nullptr, json);
+        create_value_json(root, F("ww3wayValve"), nullptr, F_(ww3wayValve), nullptr, json);
         create_value_json(root, F("wWSetPumpPower"), nullptr, F_(wWSetPumpPower), F_(percent), json);
         create_value_json(root, F("wWStarts"), nullptr, F_(wWStarts), nullptr, json);
         create_value_json(root, F("wWWorkM"), nullptr, F_(wWWorkM), nullptr, json);
@@ -644,7 +644,7 @@ bool Boiler::export_values_ww(JsonObject & json, const bool textformat) {
     Helpers::json_boolean(json, "wWActive", wWActive_);
 
     // Warm Water charging bool
-    Helpers::json_boolean(json, "wWHeat", wWHeat_);
+    Helpers::json_boolean(json, "ww3wayValve", ww3wayValve_);
 
     // Warm Water pump set power %
     if (Helpers::hasValue(wWSetPumpPower_)) {
@@ -1179,7 +1179,7 @@ void Boiler::process_IRTGetBoilerFlags(std::shared_ptr<const Telegram> telegram)
     changed_ |= telegram->read_bitvalue(heatingActive_, 4, 7);
 //?    changed_ |= telegram->read_bitvalue(ignWork_, 4, 3);
     changed_ |= telegram->read_bitvalue(tapwaterActive_, 4, 5);
-    changed_ |= telegram->read_bitvalue(wWHeat_, 4, 4);
+    changed_ |= telegram->read_bitvalue(ww3wayValve_, 4, 4);
     changed_ |= telegram->read_bitvalue(heatingActivated_, 4, 2);
     changed_ |= telegram->read_bitvalue(wWActive_, 4, 0);
 
@@ -1195,7 +1195,9 @@ void Boiler::process_IRTGetActBurnerPower(std::shared_ptr<const Telegram> telegr
     if ((temp==0xA0) && (heatingActive_==0))
         curBurnPow_ = 0;
     else
-        curBurnPow_ = (temp / 4) + 37;
+        curBurnPow_ = (temp / 4) + 30;
+    EMSESP::cur_burn_pow(curBurnPow_); // let EMS-ESP know, used in the System
+
 }
 void Boiler::process_IRTGetMaxBurnerPower(std::shared_ptr<const Telegram> telegram)  // 0x86
 {
@@ -1215,7 +1217,7 @@ void Boiler::process_IRTGetOutdoorTemp(std::shared_ptr<const Telegram> telegram)
     changed_ |= telegram->read_value(temp, 4);	
     // used a fit on data -> y = -0.3639x + 71.798 (see wiki)
     // this function fits also better to the external temp. which will be delivered from the EasyControl adapter
-    outdoorTemp_ = (int16_t)((uint32_t)(197450-temp*1000)/275);
+    outdoorTemp_ = (int16_t)((int32_t)(197450-temp*1000)/275);
  }
 
 
@@ -1361,7 +1363,7 @@ void Boiler::process_UBAMonitorFast(std::shared_ptr<const Telegram> telegram) {
     changed_ |= telegram->read_bitvalue(fanWork_, 7, 2);
     changed_ |= telegram->read_bitvalue(ignWork_, 7, 3);
     changed_ |= telegram->read_bitvalue(heatingPump_, 7, 5);
-    changed_ |= telegram->read_bitvalue(wWHeat_, 7, 6);
+    changed_ |= telegram->read_bitvalue(ww3wayValve_, 7, 6);
     changed_ |= telegram->read_bitvalue(wWCirc_, 7, 7);
 
     // warm water storage sensors (if present)
@@ -1454,7 +1456,7 @@ void Boiler::process_UBAMonitorFastPlus(std::shared_ptr<const Telegram> telegram
     changed_ |= telegram->read_value(selFlowTemp_, 6);
     changed_ |= telegram->read_bitvalue(burnGas_, 11, 0);
     // changed_ |= telegram->read_bitvalue(heatingPump_, 11, 1); // heating active? see SlowPlus
-    changed_ |= telegram->read_bitvalue(wWHeat_, 11, 2);
+    changed_ |= telegram->read_bitvalue(ww3wayValve_, 11, 2);
     changed_ |= telegram->read_value(curBurnPow_, 10);
     changed_ |= telegram->read_value(selBurnPow_, 9);
     changed_ |= telegram->read_value(curFlowTemp_, 7);

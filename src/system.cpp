@@ -18,6 +18,8 @@
 
 #include "system.h"
 #include "emsesp.h"  // for send_raw_telegram() command
+#include "./devices/boiler.h"
+#include "emsdevice.h"
 #include "version.h" // firmware version of EMS-ESP
 #include "mqtt.h"
 
@@ -47,6 +49,10 @@ uint16_t System::analog_         = 0;
 bool     System::analog_enabled_ = false;
 bool     System::syslog_enabled_ = false;
 PButton  System::myPButton_;
+float    System::gasReading_     = 0;  // calculated gas meter reading 
+uint16_t System::convFactor_     = 10300; // convertion factor m³<->Wh
+uint32_t System::maxWhPower_     = 0;  // calculated gas meter reading 
+uint32_t System::storedGasReading_= 0;  // stored gas meter reading 
 
 // send on/off to a gpio pin
 // value: true = HIGH, false = LOW
@@ -223,6 +229,18 @@ void System::other_init() {
     EMSESP::webSettingsService.read([&](WebSettings & settings) {
         Helpers::bool_format(settings.bool_format);
         analog_enabled_ = settings.analog_enabled;
+        for (const auto & emsdevice : EMSESP::emsdevices)
+            if (emsdevice->device_type()==EMSdevice::DeviceType::BOILER) {
+                emsdevice->brand((uint8_t)settings.usr_brand);
+                std::string str(30, '\0');
+                snprintf_P(&str[0],str.capacity() + 1,PSTR("%s"),settings.usr_type);
+                emsdevice->name(str);
+                convFactor_ = settings.conv_factor;
+                gasReading_ = settings.gas_meter_reading * convFactor_*4;
+                storedGasReading_ = settings.gas_meter_reading * convFactor_*4;
+                maxWhPower_ = settings.max_boiler_wh;
+            }
+
     });
 #ifdef ESP32
     // Wifi power settings 2 - 19.5dBm, raw values 4/dBm (8-78)
@@ -327,7 +345,33 @@ void System::loop() {
     if (!last_heartbeat_ || (currentMillis - last_heartbeat_ > SYSTEM_HEARTBEAT_INTERVAL)) {
         last_heartbeat_ = currentMillis;
         send_heartbeat();
-        LOG_DEBUG(F("Heartbeat in Loop()"));
+        // calculate gas meter reading
+#if defined(EMSESP_DEBUG)
+    LOG_INFO(F("last burner power %d, current burner power %d"), last_burnPower_, EMSESP::current_burn_pow());
+#endif
+        if (!last_burnPower_) {
+            EMSESP::webSettingsService.read([&](WebSettings & settings) {
+                convFactor_ = settings.conv_factor;
+                gasReading_ = settings.gas_meter_reading * convFactor_*4;
+                storedGasReading_ = settings.gas_meter_reading * convFactor_*4;
+                maxWhPower_ = settings.max_boiler_wh;
+            });
+        }
+        else {
+            gasReading_ = gasReading_+ (last_burnPower_ + EMSESP::current_burn_pow())*maxWhPower_  / 3000.0;
+        }
+        last_burnPower_ = EMSESP::current_burn_pow();
+        if (gasReading_ - storedGasReading_ > convFactor_*4) {
+                EMSESP::webSettingsService.update(
+                    [&](WebSettings & settings) {
+                        settings.gas_meter_reading = (uint32_t)(gasReading_/convFactor_/4);
+                        return StateUpdateResult::CHANGED;
+                    },
+                    "local");
+            storedGasReading_ = gasReading_;
+            EMSESP::webSettingsService.save();                                          // local settings
+        }
+
     }
 
 #if defined(ESP8266)
@@ -387,6 +431,7 @@ void System::send_heartbeat() {
 #endif
             if (analog_enabled_)
                 Mqtt::register_mqtt_ha_sensor(nullptr, nullptr, F_(analog), EMSdevice::HEARTBEAT, "adc", F("mV"), F_(iconcounter),F("measurement"));                
+            Mqtt::register_mqtt_ha_sensor(nullptr, nullptr, F_(gasReading), EMSdevice::HEARTBEAT, "gasReading", F_(meter3), F_(icongasmeter));
             mqtt_ha_status_config = true;
             return;
         }
@@ -424,6 +469,7 @@ void System::send_heartbeat() {
     if (analog_enabled_) {
         doc["adc"]      = analog_;
     }
+    doc["gasReading"]   = (float)gasReading_/convFactor_/4;
 
     Mqtt::publish(F("heartbeat"), doc.as<JsonObject>()); // send to MQTT with retain off. This will add to MQTT queue.
 }
@@ -959,6 +1005,12 @@ bool System::check_upgrade() {
                     settings.dallas_parasite      = custom_settings["dallas_parasite"] | EMSESP_DEFAULT_DALLAS_PARASITE;
                     settings.led_gpio             = custom_settings["led_gpio"] | EMSESP_DEFAULT_LED_GPIO;
                     settings.analog_enabled       = EMSESP_DEFAULT_ANALOG_ENABLED;
+                    settings.usr_brand            = custom_settings["usr_brand"] | EMSESP_DEFAULT_usr_brand;
+                    settings.usr_type             = custom_settings["usr_type"] | EMSESP_DEFAULT_usr_type;
+                    settings.min_boiler_wh        = custom_settings["min_boiler_wh"] | EMSESP_DEFAULT_MIN_BOILER_WH; 
+                    settings.max_boiler_wh        = custom_settings["max_boiler_wh"] | EMSESP_DEFAULT_MAX_BOILER_WH;
+                    settings.gas_meter_reading    = custom_settings["gas_meter_reading"] | 0;
+                    settings.conv_factor          = custom_settings["conv_factor"] | EMSESP_DEFAULT_CONV_FACTOR;
 
                     return StateUpdateResult::CHANGED;
                 },
@@ -1090,7 +1142,13 @@ bool System::command_settings(const char * value, const int8_t id, JsonObject & 
         node["bool_format"] = settings.bool_format;
         // Helpers::json_boolean(node, "analog_enabled", settings.analog_enabled);
         node["analog_enabled"] = settings.analog_enabled;
-    });
+        node["usr_brand"]      = settings.usr_brand;
+        node["usr_type"]       = settings.usr_type;
+        node["min_boiler_wh"]  = settings.min_boiler_wh;
+        node["max_boiler_wh"]  = settings.max_boiler_wh;
+        node["gas_meter_reading"] = settings.gas_meter_reading;
+        node["conv_factor"]    = settings.conv_factor;
+   });
 
 #endif
     return true;

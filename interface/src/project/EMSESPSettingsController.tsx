@@ -1,7 +1,7 @@
 import React, { Component } from 'react';
 import { ValidatorForm, TextValidator, SelectValidator } from 'react-material-ui-form-validator';
 
-import { Checkbox, Typography, Box, Link } from '@material-ui/core';
+import { Checkbox, TextField, Typography, Box, Link } from '@material-ui/core';
 import SaveIcon from '@material-ui/icons/Save';
 import MenuItem from '@material-ui/core/MenuItem';
 
@@ -301,7 +301,83 @@ function EMSESPSettingsControllerForm(props: EMSESPSettingsControllerFormProps) 
                 <MenuItem value={4}>"ON""/"OFF""</MenuItem>
             </SelectValidator>
             <br></br>
-            <FormActions>
+             <Typography variant="h6" color="primary" >
+                Boiler-Settings
+            </Typography>
+            <SelectValidator name="usr_brand"
+                label="Boiler brand"
+                value={data.usr_brand}
+                fullWidth
+                variant="outlined"
+                onChange={handleValueChange('usr_brand')}
+                margin="normal">
+                <MenuItem value={0}>0 - not set/other</MenuItem>
+                <MenuItem value={1}>1 - Bosch</MenuItem>
+                <MenuItem value={2}>2 - Junkers</MenuItem>
+                <MenuItem value={3}>3 - Buderus</MenuItem>
+                <MenuItem value={4}>4 - Nefit</MenuItem>
+                <MenuItem value={5}>5 - Sieger</MenuItem>
+                <MenuItem value={11}>11 - Worcester</MenuItem>
+            </SelectValidator>
+            <TextField
+                name="usr_type"
+                label="Type of boiler (optional)"
+                fullWidth
+                variant="outlined"
+                value={data.usr_type}
+                onChange={handleValueChange('usr_type')}
+                margin="normal"
+            />
+           <TextValidator
+                validators={['required', 'isNumber', 'minNumber:0', 'maxNumber:65535']}
+                errorMessages={['Min boiler power(Wh) is required', "Must be a number", "Must be 0 or higher", "Max value is 65000 (65kWh)"]}
+                name="min_boiler_wh"
+                label="Min boiler power (Wh, 0=not set)"
+                fullWidth
+                variant="outlined"
+                value={data.min_boiler_wh}
+                type="number"
+                onChange={handleValueChange('min_boiler_wh')}
+                margin="normal"
+            />
+            <TextValidator
+                validators={['required', 'isNumber', 'minNumber:0', 'maxNumber:65535']}
+                errorMessages={['Max boiler power(Wh) is required', "Must be a number", "Must be 0 or higher", "Max value is 65000 (65kWh)"]}
+                name="max_boiler_wh"
+                label="Max boiler power (Wh, 0=not set)"
+                fullWidth
+                variant="outlined"
+                value={data.max_boiler_wh}
+                type="number"
+                onChange={handleValueChange('max_boiler_wh')}
+                margin="normal"
+            />
+            <TextValidator
+                validators={['isNumber', 'minNumber:0', 'maxNumber:99999']}
+                errorMessages={["Must be a number", "Must be 0 or higher", "Max value is 99999 (99999 m³)"]}
+                name="gas_meter_reading"
+                label="Gas meter reading (m³, 0=not set)"
+                fullWidth
+                variant="outlined"
+                value={data.gas_meter_reading}
+                type="number"
+                onChange={handleValueChange('gas_meter_reading')}
+                margin="normal"
+            />
+            <TextValidator
+                validators={['isNumber', 'minNumber:0', 'maxNumber:12000']}
+                errorMessages={["Must be a number", "Must be 0 or higher", "Max value is 12000"]}
+                name="conv_factor"
+                label="Conversion factor m³<-> Wh"
+                fullWidth
+                variant="outlined"
+                value={data.conv_factor}
+                type="number"
+                onChange={handleValueChange('conv_factor')}
+                margin="normal"
+            />
+            <br></br>
+             <FormActions>
                 <FormButton startIcon={<SaveIcon />} variant="contained" color="primary" type="submit">
                     Save
                 </FormButton>

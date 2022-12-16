@@ -155,6 +155,10 @@ class EMSESP {
         return tap_water_active_;
     }
 
+    static uint8_t current_burn_pow() {
+        return cur_burn_pow_;
+    }
+
     static bool trace_raw() {
         return trace_raw_;
     }
@@ -165,6 +169,10 @@ class EMSESP {
 
     static void tap_water_active(const bool tap_water_active) {
         tap_water_active_ = tap_water_active;
+    }
+
+    static void cur_burn_pow(const uint8_t cur_burn_pow) {
+        cur_burn_pow_ = cur_burn_pow;
     }
 
     static void fetch_device_values(const uint8_t device_id = 0);
@@ -231,6 +239,7 @@ class EMSESP {
     static bool     read_next_;
     static uint16_t publish_id_;
     static bool     tap_water_active_;
+    static uint8_t  cur_burn_pow_;
     static uint8_t  publish_all_idx_;
     static uint8_t  unique_id_count_;
     static bool     trace_raw_;

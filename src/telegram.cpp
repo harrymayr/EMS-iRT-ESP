@@ -213,8 +213,8 @@ void RxService::add(uint8_t * data, uint8_t length) {
             ems_mask(0x00);
             std::string version(5, '\0');
             snprintf_P(&version[0], version.capacity() + 1, PSTR("*iRT*"));
-            //EMSESP::add_device(0x08, 255,version, EMSdevice::Brand::BUDERUS); // UBA 4000/4001
-            EMSESP::add_device(0x08, 211,version, EMSdevice::Brand::BOSCH); // Easy Control Adapter
+            EMSESP::add_device(0x08, 255,version, EMSdevice::Brand::BUDERUS); // UBA 4000/4001
+//            EMSESP::add_device(0x08, 211,version, EMSdevice::Brand::BOSCH); // Easy Control Adapter
         }
     }
 

@@ -361,30 +361,29 @@ void DallasSensor::publish_values(const bool force) {
                 //StaticJsonDocument<EMSESP_MAX_JSON_SIZE_MEDIUM> config;
                 config["dev_cla"] = FJSON("temperature");
 
-                char stat_t[128];
-                snprintf_P(stat_t, sizeof(stat_t), PSTR("%s/dallassensor_data"), Mqtt::base().c_str());
-                config["stat_t"] = stat_t;
+                char temp[128];
+                snprintf_P(temp, sizeof(temp), PSTR("%s/dallassensor_data"), Mqtt::base().c_str());
+                config["stat_t"] = temp;
 
                 config["unit_of_meas"] = FJSON("°C");
 
-                char str[50];
-                snprintf_P(str, sizeof(str), PSTR("{{value_json.sensor%d.temp}}"), sensor_no);
-                config["val_tpl"] = str;
+                snprintf_P(temp, sizeof(temp), PSTR("{{value_json.sensor%d.temp}}"), sensor_no);
+                config["val_tpl"] = temp;
 
                 // name as sensor number not the long unique ID
-                snprintf_P(str, sizeof(str), PSTR("Dallas Sensor %d"), sensor_no);
-                config["name"] = str;
+                snprintf_P(temp, sizeof(temp), PSTR("Dallas Sensor %d"), sensor_no);
+                config["name"] = temp;
 
-                snprintf_P(str, sizeof(str), PSTR("dallas_%s"), sensor.to_string().c_str());
-                config["uniq_id"] = str;
+                snprintf_P(temp, sizeof(temp), PSTR("dallas_%s"), sensor.to_string().c_str());
+                config["uniq_id"] = temp;
 
                 JsonObject dev = config.createNestedObject("dev");
                 JsonArray  ids = dev.createNestedArray("ids");
-                ids.add("ems-esp");
+                snprintf_P(temp, sizeof(temp), PSTR("%s"), Mqtt::base().c_str());
+                ids.add(temp);
 
-                std::string topic(100, '\0');
-                snprintf_P(&topic[0], 100, PSTR("homeassistant/sensor/ems-esp/dallas_%s/config"), sensor.to_string().c_str());
-                Mqtt::publish_ha(topic, config.as<JsonObject>());
+                snprintf_P(temp, sizeof(temp), PSTR("homeassistant/sensor/%s/dallas_%s/config"), Mqtt::base().c_str(), sensor.to_string().c_str());
+                Mqtt::publish_ha(temp, config.as<JsonObject>());
 
                 registered_ha_[sensor_no - 1] = true;
             }

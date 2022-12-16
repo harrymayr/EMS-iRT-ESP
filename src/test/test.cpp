@@ -120,18 +120,28 @@ bool Test::run_test(const char * command, int8_t id) {
 
     if (strcmp(command, "boiler") == 0) {
         EMSESP::logger().info(F("Testing boiler..."));
-        add_device(0x08, 123); // Nefit Trendline
+        if (EMSbus::tx_mode() <= EMS_TXMODE_HW) {
 
-        // UBAuptime
-        uart_telegram({0x08, 0x0B, 0x14, 00, 0x3C, 0x1F, 0xAC, 0x70});
+            add_device(0x08, 123); // Nefit Trendline
 
-        // Boiler -> Me, UBAMonitorFast(0x18), telegram: 08 00 18 00 00 02 5A 73 3D 0A 10 65 40 02 1A 80 00 01 E1 01 76 0E 3D 48 00 C9 44 02 00 (#data=25)
-        uart_telegram({0x08, 0x00, 0x18, 0x00, 0x00, 0x02, 0x5A, 0x73, 0x3D, 0x0A, 0x10, 0x65, 0x40, 0x02, 0x1A,
-                       0x80, 0x00, 0x01, 0xE1, 0x01, 0x76, 0x0E, 0x3D, 0x48, 0x00, 0xC9, 0x44, 0x02, 0x00});
+            // UBAuptime
+            uart_telegram({0x08, 0x0B, 0x14, 00, 0x3C, 0x1F, 0xAC, 0x70});
 
-        // Boiler -> Me, UBAParameterWW(0x33), telegram: 08 0B 33 00 08 FF 34 FB 00 28 00 00 46 00 FF FF 00 (#data=13)
-        uart_telegram({0x08, 0x0B, 0x33, 0x00, 0x08, 0xFF, 0x34, 0xFB, 0x00, 0x28, 0x00, 0x00, 0x46, 0x00, 0xFF, 0xFF, 0x00});
+            // Boiler -> Me, UBAMonitorFast(0x18), telegram: 08 00 18 00 00 02 5A 73 3D 0A 10 65 40 02 1A 80 00 01 E1 01 76 0E 3D 48 00 C9 44 02 00 (#data=25)
+            uart_telegram({0x08, 0x00, 0x18, 0x00, 0x00, 0x02, 0x5A, 0x73, 0x3D, 0x0A, 0x10, 0x65, 0x40, 0x02, 0x1A,
+                        0x80, 0x00, 0x01, 0xE1, 0x01, 0x76, 0x0E, 0x3D, 0x48, 0x00, 0xC9, 0x44, 0x02, 0x00});
 
+            // Boiler -> Me, UBAParameterWW(0x33), telegram: 08 0B 33 00 08 FF 34 FB 00 28 00 00 46 00 FF FF 00 (#data=13)
+            uart_telegram({0x08, 0x0B, 0x33, 0x00, 0x08, 0xFF, 0x34, 0xFB, 0x00, 0x28, 0x00, 0x00, 0x46, 0x00, 0xFF, 0xFF, 0x00});
+        }
+        else {
+            add_device(0x08, 255); // iRT boiler
+            uart_telegram({0x01, 0x01, 0xFE, 0x8A, 0x8A, 0x00, 0x00, 0x00, 0x00, 0x8A, 0x8A, 0xC8, 0x37});
+            uart_telegram({0x01, 0x01, 0xFE, 0x82, 0x82, 0x00, 0x00, 0x00, 0x00, 0x82, 0x82, 0x84, 0x7B});
+            uart_telegram({0x01, 0x01, 0xFE, 0x83, 0x83, 0x00, 0x00, 0x00, 0x00, 0x83, 0x83, 0x46, 0xB9});
+            uart_telegram({0x01, 0x01, 0xFE, 0xA3, 0xA3, 0x00, 0x00, 0x00, 0x00, 0xA3, 0xA3, 0x03, 0xFC});
+
+        }
         return true;
     }
 
@@ -356,7 +366,7 @@ void Test::run_test(uuid::console::Shell & shell, const std::string & cmd) {
 
         shell.invoke_command("show");
 
-        StaticJsonDocument<500> doc;
+        DynamicJsonDocument doc(500);
         JsonObject              root = doc.to<JsonObject>();
         EMSESP::device_info_web(2, root); // show thermostat. use 1 for boiler
         serializeJsonPretty(doc, shell);
@@ -964,8 +974,15 @@ void Test::uart_telegram(const char * rx_data) {
 
 // Sends version telegram. Version is hardcoded to 1.0
 void Test::add_device(uint8_t device_id, uint8_t product_id) {
-    // Send version: 09 0B 02 00 PP V1 V2
-    uart_telegram({device_id, EMSESP_DEFAULT_EMS_BUS_ID, EMSdevice::EMS_TYPE_VERSION, 0, product_id, 1, 0});
+    if (EMSbus::tx_mode() <= EMS_TXMODE_HW) {
+        // Send version: 09 0B 02 00 PP V1 V2
+        uart_telegram({device_id, EMSESP_DEFAULT_EMS_BUS_ID, EMSdevice::EMS_TYPE_VERSION, 0, product_id, 1, 0});
+    }
+    else {
+        std::string version(5, '\0');
+        snprintf_P(&version[0], version.capacity() + 1, PSTR("*iRT*"));
+        EMSESP::add_device(device_id, product_id,version, EMSdevice::Brand::BUDERUS); // UBA 4000/4001
+    }
 }
 
 } // namespace emsesp

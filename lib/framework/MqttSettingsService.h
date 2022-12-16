@@ -26,7 +26,7 @@
 #endif
 
 #ifndef FACTORY_MQTT_BASE
-#define FACTORY_MQTT_BASE "ems-esp"
+#define FACTORY_MQTT_BASE "irt"
 #endif
 
 #ifndef FACTORY_MQTT_PORT

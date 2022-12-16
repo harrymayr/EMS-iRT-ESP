@@ -23,7 +23,7 @@
 #endif
 
 #ifndef FACTORY_AP_SSID
-#define FACTORY_AP_SSID "ems-esp"
+#define FACTORY_AP_SSID "irt-esp"
 #endif
 
 #ifndef FACTORY_AP_PASSWORD

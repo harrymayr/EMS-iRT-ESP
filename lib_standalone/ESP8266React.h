@@ -28,12 +28,12 @@ class DummySettings {
     uint8_t  mqtt_format             = 3;  // 1=single, 2=nested, 3=ha, 4=custom
     uint8_t  mqtt_qos                = 0;
     bool     mqtt_retain             = false;
-    String   base                    = "ems-esp";
+    String   base                    ="irt-esp";
     bool     enabled                 = true; // MQTT
-    String   hostname                = "ems-esp";
-    String   jwtSecret               = "ems-esp";
-    String   ssid                    = "ems-esp";
-    String   password                = "ems-esp";
+    String   hostname                = "irt-esp";
+    String   jwtSecret               = "irt-esp";
+    String   ssid                    = "irt-esp";
+    String   password                = "irt-esp";
     String   localIP                 = "";
     String   gatewayIP               = "";
     String   subnetMask              = "";
@@ -47,6 +47,12 @@ class DummySettings {
     uint16_t publish_time_other      = 10;
     uint16_t publish_time_sensor     = 10;
     uint8_t  bool_format             = 1; // on off
+    uint8_t  usr_brand               = 3; // BUDERUS
+    String   usr_type                = "";
+    uint16_t min_boiler_wh           = 6600;
+    uint16_t max_boiler_wh           = 24300;
+    uint32_t gas_meter_reading       = 0;
+    uint16_t conv_factor             = 10300;
 
     static void read(DummySettings & settings, JsonObject & root){};
     static void read(DummySettings & settings){};

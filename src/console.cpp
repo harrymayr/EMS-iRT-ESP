@@ -66,7 +66,7 @@ void EMSESPShell::stopped() {
 void EMSESPShell::display_banner() {
     println();
     printfln(F("┌──────────────────────────────────────────┐"));
-    printfln(F("│ %sEMS-ESP version %-10s%s               │"), COLOR_BOLD_ON, EMSESP_APP_VERSION, COLOR_BOLD_OFF);
+    printfln(F("│ %sEMS/iRT-ESP version %-10s%s           │"), COLOR_BOLD_ON, EMSESP_APP_VERSION, COLOR_BOLD_OFF);
     printfln(F("│ %s%shttps://github.com/emsesp/EMS-ESP%s        │"), COLOR_BRIGHT_GREEN, COLOR_UNDERLINE, COLOR_RESET);
     printfln(F("│                                          │"));
     printfln(F("│ type %shelp%s to show available commands     │"), COLOR_UNDERLINE, COLOR_RESET);
@@ -114,7 +114,7 @@ void EMSESPShell::add_console_commands() {
                           CommandFlags::USER,
                           flash_string_vector{F_(show)},
                           [](Shell & shell, const std::vector<std::string> & arguments __attribute__((unused))) {
-                              shell.printfln(F("%s%sEMS-ESP version %s%s"), COLOR_BRIGHT_GREEN, COLOR_BOLD_ON, EMSESP_APP_VERSION, COLOR_RESET);
+                              shell.printfln(F("%s%sEMS/iRT-ESP version %s%s"), COLOR_BRIGHT_GREEN, COLOR_BOLD_ON, EMSESP_APP_VERSION, COLOR_RESET);
                               shell.println();
                               EMSESP::show_device_values(shell);
                               EMSESP::show_sensor_values(shell);
@@ -243,6 +243,17 @@ void EMSESPShell::add_console_commands() {
                                   shell.printfln(F_(master_thermostat_fmt),
                                                  settings.master_thermostat == 0 ? uuid::read_flash_string(F_(auto)).c_str()
                                                                                  : Helpers::hextoa(buffer, settings.master_thermostat));
+                                    for (const auto & emsdevice : EMSESP::emsdevices) {
+                                        if (emsdevice->device_type()==EMSdevice::DeviceType::BOILER) {
+                                                shell.printfln(F_(usr_brand_fmt),settings.usr_brand,
+                                                    emsdevice->to_string_short().c_str()); 
+                                                shell.printfln(F_(usr_type_fmt),settings.usr_type); 
+                                                shell.printfln(F_(min_boiler_wh_fmt),settings.min_boiler_wh); 
+                                                shell.printfln(F_(max_boiler_wh_fmt),settings.max_boiler_wh);                                                 
+                                                shell.printfln(F_(gas_meter_reading_fmt),settings.gas_meter_reading);                                                 
+                                                shell.printfln(F_(conv_factor_fmt),settings.conv_factor);                                                 
+                                        }                
+                                    }
                               });
                           });
 

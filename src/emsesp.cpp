@@ -62,6 +62,7 @@ uint16_t EMSESP::read_id_                  = WATCH_ID_NONE;
 bool     EMSESP::read_next_                = false;
 uint16_t EMSESP::publish_id_               = 0;
 bool     EMSESP::tap_water_active_         = false; // for when Boiler states we having running warm water. used in Shower()
+uint8_t  EMSESP::cur_burn_pow_             = 0; // current boiler power for calculating gas meter reading. used in heartbeat()
 uint32_t EMSESP::last_fetch_               = 0;
 uint8_t  EMSESP::publish_all_idx_          = 0;
 uint8_t  EMSESP::unique_id_count_          = 0;
@@ -809,7 +810,9 @@ bool EMSESP::add_device(const uint8_t device_id, const uint8_t product_id, std::
         return false;
     }
 
-    //LOG_DEBUG(F("Check for already active device ID 0x%02X"), device_id);
+#if defined(EMSESP_TEST)
+    LOG_DEBUG(F("Check for already active device ID 0x%02X"), device_id);
+#endif    
     // first check to see if we already have it, if so update the record
     for (const auto & emsdevice : emsdevices) {
         if (emsdevice) {
@@ -817,14 +820,27 @@ bool EMSESP::add_device(const uint8_t device_id, const uint8_t product_id, std::
                 LOG_DEBUG(F("Updating details for already active device ID 0x%02X"), device_id);
                 emsdevice->product_id(product_id);
                 emsdevice->version(version);
+                if (product_id != 255) {
                 // only set brand if it doesn't already exist
-                if (emsdevice->brand() == EMSdevice::Brand::NO_BRAND) {
-                    emsdevice->brand(brand);
+                    if (emsdevice->brand() == EMSdevice::Brand::NO_BRAND) {
+                        emsdevice->brand(brand);
+                    }
+                }
+                else if (emsdevice->device_type()==EMSdevice::DeviceType::BOILER) {
+                    // read user-settings for iRT boiler
+                    EMSESP::webSettingsService.read([&](WebSettings & settings) {
+                        emsdevice->brand((uint8_t)settings.usr_brand);
+                        std::string str(30, '\0');
+                        snprintf_P(&str[0],str.capacity() + 1,PSTR("%s"),settings.usr_type);
+                        emsdevice->name(str);
+                    });
                 }
                 // find the name and flags in our database
                 for (const auto & device : device_library_) {
                     if (device.product_id == product_id) {
-                        emsdevice->name(uuid::read_flash_string(device.name));
+                        if (product_id != 255)
+                        // already set if iRT boiler
+                            emsdevice->name(uuid::read_flash_string(device.name));
                         emsdevice->add_flags(device.flags);
                     }
                 }
@@ -834,7 +850,9 @@ bool EMSESP::add_device(const uint8_t device_id, const uint8_t product_id, std::
         }
     }
 
-    //LOG_DEBUG(F("Device ID 0x%02X should be new"), device_id);
+#if defined(EMSESP_TEST)
+    LOG_DEBUG(F("Device ID 0x%02X should be new"), device_id);
+#endif
 
     // look up the rest of the details using the product_id and create the new device object
     Device_record * device_p = nullptr;
@@ -856,7 +874,9 @@ bool EMSESP::add_device(const uint8_t device_id, const uint8_t product_id, std::
             }
         }
     }
-    //LOG_DEBUG(F("Found device ID 0x%02X in device library"), device_id);
+#if defined(EMSESP_TEST)
+    LOG_DEBUG(F("Found device ID 0x%02X in device library"), device_id);
+#endif
 
     // if we don't recognize the product ID report it and add as a generic device
     if (device_p == nullptr) {
@@ -867,21 +887,36 @@ bool EMSESP::add_device(const uint8_t device_id, const uint8_t product_id, std::
         return false; // not found
     }
 
-    auto name        = uuid::read_flash_string(device_p->name);
     auto device_type = device_p->device_type;
     auto flags       = device_p->flags;
-    LOG_DEBUG(F("Adding new device %s (device ID 0x%02X, product ID %d, version %s)"), name.c_str(), device_id, product_id, version.c_str());
-    emsdevices.push_back(EMSFactory::add(device_type, device_id, product_id, version, name, flags, brand));
+    if ((device_type==EMSdevice::DeviceType::BOILER) && (product_id == 255)) {
+        // read user-settings for iRT boiler
+        EMSESP::webSettingsService.read([&](WebSettings & settings) {
+            std::string str(30, '\0');
+            snprintf_P(&str[0],str.capacity() + 1,PSTR("%s"),settings.usr_type);
+        LOG_DEBUG(F("Adding new device %s (device ID 0x%02X, product ID %d, version %s)"),settings.usr_type, device_id, product_id, version.c_str());
+            emsdevices.push_back(EMSFactory::add(device_type, device_id, product_id, version, str, flags, settings.usr_brand));
+        });
+    }
+    else {
+        auto name        = uuid::read_flash_string(device_p->name);
+        LOG_DEBUG(F("Adding new device %s (device ID 0x%02X, product ID %d, version %s)"), name.c_str(), device_id, product_id, version.c_str());
+        emsdevices.push_back(EMSFactory::add(device_type, device_id, product_id, version, name, flags, brand));
+    }
     emsdevices.back()->unique_id(++unique_id_count_);
 
-    //LOG_DEBUG(F("Fetch device values for device ID 0x%02X"), device_id);
+#if defined(EMSESP_TEST)    
+    LOG_DEBUG(F("Fetch device values for device ID 0x%02X"), device_id);
+#endif
     fetch_device_values(device_id); // go and fetch its data
 
     // add info command, but not for all devices
     if ((device_type == DeviceType::CONNECT) || (device_type == DeviceType::CONTROLLER) || (device_type == DeviceType::GATEWAY)) {
         return true;
     }
-    //LOG_DEBUG(F("Add Command for device ID 0x%02X"), device_id);
+#if defined(EMSESP_TEST)    
+    LOG_DEBUG(F("Add Command for device ID 0x%02X"), device_id);
+#endif
 
     Command::add_with_json(device_type, F_(info), [device_type](const char * value, const int8_t id, JsonObject & json) {
         return command_info(device_type, json, id);
