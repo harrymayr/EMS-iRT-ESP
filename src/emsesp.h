@@ -52,14 +52,21 @@
 
 #define WATCH_ID_NONE 0 // no watch id set
 
-#define EMSESP_MAX_JSON_SIZE_HA_CONFIG min(384,ESP.getMaxFreeBlockSize() - 512)   // for small HA config payloads, using StaticJsonDocument
+#define EMSESP_MAX_JSON_SIZE_HA_CONFIG 384   // for small HA config payloads, using StaticJsonDocument
+#define EMSESP_MAX_JSON_SIZE_SMALL 256       // for smaller json docs, using StaticJsonDocument
+#define EMSESP_MAX_JSON_SIZE_MEDIUM 768      // for medium json docs from ems devices, using StaticJsonDocument
+#define EMSESP_MAX_JSON_SIZE_LARGE 1924      // for large json docs from ems devices, like boiler or thermostat data, using StaticJsonDocument
+#define EMSESP_MAX_JSON_SIZE_MEDIUM_DYN 1024 // for large json docs, using DynamicJsonDocument
+#define EMSESP_MAX_JSON_SIZE_LARGE_DYN 2048  // for very large json docs, using DynamicJsonDocument
+#define EMSESP_MAX_JSON_SIZE_MAX_DYN 4096    // for very very large json docs, using DynamicJsonDocument
+/* #define EMSESP_MAX_JSON_SIZE_HA_CONFIG min(384,ESP.getMaxFreeBlockSize() - 512)   // for small HA config payloads, using StaticJsonDocument
 #define EMSESP_MAX_JSON_SIZE_SMALL min(256,ESP.getMaxFreeBlockSize() - 512)       // for smaller json docs, using StaticJsonDocument
 #define EMSESP_MAX_JSON_SIZE_MEDIUM min(768,ESP.getMaxFreeBlockSize() - 512)      // for medium json docs from ems devices, using StaticJsonDocument
 #define EMSESP_MAX_JSON_SIZE_LARGE min(1024,ESP.getMaxFreeBlockSize() - 512)      // for large json docs from ems devices, like boiler or thermostat data, using StaticJsonDocument
 #define EMSESP_MAX_JSON_SIZE_MEDIUM_DYN min(1024,ESP.getMaxFreeBlockSize() - 512) // for large json docs, using DynamicJsonDocument
 #define EMSESP_MAX_JSON_SIZE_LARGE_DYN min(2048,ESP.getMaxFreeBlockSize() - 512)  // for very large json docs, using DynamicJsonDocument
 #define EMSESP_MAX_JSON_SIZE_MAX_DYN min(4096,ESP.getMaxFreeBlockSize() - 512)    // for very very large json docs, using DynamicJsonDocument
-
+ */
 namespace emsesp {
 
 class Shower; // forward declaration for compiler

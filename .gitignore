@@ -26,4 +26,4 @@ emsesp
 /interface/node_modules
 /interface/.eslintcache
 src/pid.cpp
-src/pid.cpp
+src/pid.h
