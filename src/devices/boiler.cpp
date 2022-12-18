@@ -17,6 +17,7 @@
  */
 
 #include "boiler.h"
+#include "system.h"
 
 namespace emsesp {
 
@@ -145,187 +146,195 @@ void Boiler::register_mqtt_ha_config() {
     if (!Mqtt::connected()) {
         return;
     }
+    if (mqtt_ha_config_ == 0) {
+        // Create the Master device
+        DynamicJsonDocument doc(EMSESP_MAX_JSON_SIZE_HA_CONFIG);
+        //StaticJsonDocument<EMSESP_MAX_JSON_SIZE_HA_CONFIG> doc;
+        doc["name"]    = FJSON("Service Code");
+        doc["uniq_id"] = FJSON("boiler");
+        doc["ic"]      = FJSON("mdi:home-thermometer-outline");
 
-    // Create the Master device
-    DynamicJsonDocument doc(EMSESP_MAX_JSON_SIZE_HA_CONFIG);
-    //StaticJsonDocument<EMSESP_MAX_JSON_SIZE_HA_CONFIG> doc;
-    doc["name"]    = FJSON("Service Code");
-    doc["uniq_id"] = FJSON("boiler");
-    doc["ic"]      = FJSON("mdi:home-thermometer-outline");
+        char temp[128];
+        snprintf_P(temp, sizeof(temp), PSTR("%s/boiler_data"), Mqtt::base().c_str());
+        doc["stat_t"] = temp;
 
-    char temp[128];
-    snprintf_P(temp, sizeof(temp), PSTR("%s/boiler_data"), Mqtt::base().c_str());
-    doc["stat_t"] = temp;
+        doc["val_tpl"] = FJSON("{{value_json.serviceCode}}");
+        JsonObject dev = doc.createNestedObject("dev");
+        snprintf_P(temp, sizeof(temp), PSTR("%s Boiler"), Mqtt::base().c_str());
+        dev["name"]    = temp;
+        dev["sw"]      = EMSESP_APP_VERSION;
+        dev["mf"]      = brand_to_string();
+        dev["mdl"]     = name();
+        JsonArray ids  = dev.createNestedArray("ids");
+        snprintf_P(temp, sizeof(temp), PSTR("%s-boiler"), Mqtt::base().c_str());
+        ids.add(temp);
+        snprintf_P(temp, sizeof(temp), PSTR("homeassistant/sensor/%s/boiler/config"), Mqtt::base().c_str());
+        LOG_DEBUG(F("[DEBUG] Json memoryUsage:%d, measureJson:%d"), doc.memoryUsage(), measureJson(doc));
+        Mqtt::publish_ha(temp, doc.as<JsonObject>()); // publish the config payload with retain flag
 
-    doc["val_tpl"] = FJSON("{{value_json.serviceCode}}");
-    JsonObject dev = doc.createNestedObject("dev");
-    snprintf_P(temp, sizeof(temp), PSTR("%s Boiler"), Mqtt::base().c_str());
-    dev["name"]    = temp;
-    dev["sw"]      = EMSESP_APP_VERSION;
-    dev["mf"]      = brand_to_string();
-    dev["mdl"]     = name();
-    JsonArray ids  = dev.createNestedArray("ids");
-    snprintf_P(temp, sizeof(temp), PSTR("%s-boiler"), Mqtt::base().c_str());
-    ids.add(temp);
-    snprintf_P(temp, sizeof(temp), PSTR("homeassistant/sensor/%s/boiler/config"), Mqtt::base().c_str());
-    Mqtt::publish_ha(temp, doc.as<JsonObject>()); // publish the config payload with retain flag
+        Mqtt::register_mqtt_ha_binary_sensor(F_(tapwaterActive), device_type(), "tapwater_active");
+        Mqtt::register_mqtt_ha_binary_sensor(F_(heatingActive), device_type(), "heating_active");
 
-    Mqtt::register_mqtt_ha_binary_sensor(F_(tapwaterActive), device_type(), "tapwater_active");
-    Mqtt::register_mqtt_ha_binary_sensor(F_(heatingActive), device_type(), "heating_active");
-
-    // main
-    if (Helpers::hasValue(serviceCodeNumber_)) {
-        Mqtt::register_mqtt_ha_sensor(nullptr, nullptr, F_(serviceCodeNumber), device_type(), "serviceCodeNumber", nullptr, F_(iconpower));
-    }
-    if (Helpers::hasValue(selFlowTemp_)) {
-        Mqtt::register_mqtt_ha_sensor(nullptr, nullptr, F_(selFlowTemp), device_type(), "selFlowTemp", F_(degrees), F_(iconcruise));
-    }
-    if (Helpers::hasValue(selBurnPow_)) {
-        Mqtt::register_mqtt_ha_sensor(nullptr, nullptr, F_(selBurnPow), device_type(), "selBurnPow", F_(percent), F_(iconpercent));
-    }
-    if (Helpers::hasValue(curBurnPow_)) {
-        Mqtt::register_mqtt_ha_sensor(nullptr, nullptr, F_(curBurnPow), device_type(), "curBurnPow", F_(percent), F_(iconfire));
-    }
-    if (Helpers::hasValue(outdoorTemp_)) {
-        Mqtt::register_mqtt_ha_sensor(nullptr, nullptr, F_(outdoorTemp), device_type(), "outdoorTemp", F_(degrees), F_(iconexport));
-    }
-    if (Helpers::hasValue(curFlowTemp_)) {
-	    Mqtt::register_mqtt_ha_sensor(nullptr, nullptr, F_(curFlowTemp), device_type(), "curFlowTemp", F_(degrees), F_(iconwatertemp));
-    }
-    if (Helpers::hasValue(retTemp_)) {
-	    Mqtt::register_mqtt_ha_sensor(nullptr, nullptr, F_(retTemp), device_type(), "retTemp", F_(degrees), F_(iconwatertemp));
-    }
-    if (Helpers::hasValue(heatingPump_)) {
-        Mqtt::register_mqtt_ha_sensor(nullptr, nullptr, F_(heatingPump), device_type(), "heatingPump", nullptr, F_(iconpump));
-    }
-    if (Helpers::hasValue(burnGas_)) {
-        Mqtt::register_mqtt_ha_sensor(nullptr, nullptr, F_(burnGas), device_type(), "burnGas", nullptr, F_(iconfire));
-    }
-    if (Helpers::hasValue(fanWork_)) {
-        Mqtt::register_mqtt_ha_sensor(nullptr, nullptr, F_(fanWork), device_type(), "fanWork", nullptr, F_(iconfan));
-    }
-    if (Helpers::hasValue(heatingActivated_)) {
-        Mqtt::register_mqtt_ha_sensor(nullptr, nullptr, F_(heatingActivated), device_type(), "heatingActivated", nullptr, nullptr);
-    }
-    if (Helpers::hasValue(heatingTemp_)) {
-        Mqtt::register_mqtt_ha_sensor(nullptr, nullptr, F_(heatingTemp), device_type(), "heatingTemp", F_(degrees), F_(iconwatertemp));
-    }
-    if (Helpers::hasValue(burnMinPeriod_)) {
-        Mqtt::register_mqtt_ha_sensor(nullptr, nullptr, F_(burnMinPeriod), device_type(), "burnMinPeriod", F_(min), nullptr);
-    }
-    if (Helpers::hasValue(burnMinPower_)) {
-        Mqtt::register_mqtt_ha_sensor(nullptr, nullptr, F_(burnMinPower), device_type(), "burnMinPower", F_(percent), F_(iconpercent));
-    }
-    if (Helpers::hasValue(burnMaxPower_)) {
-        Mqtt::register_mqtt_ha_sensor(nullptr, nullptr, F_(burnMaxPower), device_type(), "burnMaxPower", F_(percent), F_(iconpercent));
-    }
-    if (Helpers::hasValue(boilHystOn_)) {
-        Mqtt::register_mqtt_ha_sensor(nullptr, nullptr, F_(boilHystOn), device_type(), "boilHystOn", F_(degrees), F_(iconwatertemp));
-    }
-    if (Helpers::hasValue(boilHystOff_)) {
-        Mqtt::register_mqtt_ha_sensor(nullptr, nullptr, F_(boilHystOff), device_type(), "boilHystOff", F_(degrees), F_(iconwatertemp));
-    }
-    if (Helpers::hasValue(setFlowTemp_)) {
-        Mqtt::register_mqtt_ha_sensor(nullptr, nullptr, F_(setFlowTemp), device_type(), "setFlowTemp", F_(degrees), F_(iconwatertemp));
-    }
-    if (Helpers::hasValue(setBurnPow_)) {
-        Mqtt::register_mqtt_ha_sensor(nullptr, nullptr, F_(setBurnPow), device_type(), "setBurnPow", F_(percent), F_(iconpercent));
-    }
-    if (Helpers::hasValue(burnStarts_)) {
-        Mqtt::register_mqtt_ha_sensor(nullptr, nullptr, F_(burnStarts), device_type(), "burnStarts", nullptr, nullptr);
-    }
-    if (Helpers::hasValue(burnWorkMin_)) {
-        Mqtt::register_mqtt_ha_sensor(nullptr, nullptr, F_(burnWorkMin), device_type(), "burnWorkMin", F_(min), nullptr);
-    }
-    // values should be sent if hasValues checks to false, but I see MQTT messages for non iRT sensors, so avoid sending it by tx-Mode
-    if (EMSbus::tx_mode() <= EMS_TXMODE_HW) {
-        if (Helpers::hasValue(heatingPumpMod_)) {
-            Mqtt::register_mqtt_ha_sensor(nullptr, nullptr, F_(heatingPumpMod), device_type(), "heatingPumpMod", F_(percent), F_(iconpercent));
+        // main
+        if (Helpers::hasValue(serviceCodeNumber_)) {
+            Mqtt::register_mqtt_ha_sensor(nullptr, nullptr, F_(serviceCodeNumber), device_type(), "serviceCodeNumber", nullptr, F_(iconpower));
         }
-        if (Helpers::hasValue(heatingPump2Mod_)) {
-            Mqtt::register_mqtt_ha_sensor(nullptr, nullptr, F_(heatingPump2Mod), device_type(), "heatingPump2Mod", F_(percent), F_(iconpercent));
+        if (Helpers::hasValue(selFlowTemp_)) {
+            Mqtt::register_mqtt_ha_sensor(nullptr, nullptr, F_(selFlowTemp), device_type(), "selFlowTemp", F_(degrees), F_(iconcruise));
         }
-        if (Helpers::hasValue(switchTemp_)) {
-            Mqtt::register_mqtt_ha_sensor(nullptr, nullptr, F_(switchTemp), device_type(), "switchTemp", F_(degrees), F_(iconwatertemp));
+        if (Helpers::hasValue(selBurnPow_)) {
+            Mqtt::register_mqtt_ha_sensor(nullptr, nullptr, F_(selBurnPow), device_type(), "selBurnPow", F_(percent), F_(iconpercent));
         }
-        if (Helpers::hasValue(sysPress_)) {
-            Mqtt::register_mqtt_ha_sensor(nullptr, nullptr, F_(sysPress), device_type(), "sysPress", F_(bar), nullptr);
+        if (Helpers::hasValue(curBurnPow_)) {
+            Mqtt::register_mqtt_ha_sensor(nullptr, nullptr, F_(curBurnPow), device_type(), "curBurnPow", F_(percent), F_(iconfire));
         }
-        if (Helpers::hasValue(boilTemp_)) {
-            Mqtt::register_mqtt_ha_sensor(nullptr, nullptr, F_(boilTemp), device_type(), "boilTemp", F_(degrees), nullptr);
+        if (Helpers::hasValue(outdoorTemp_)) {
+            Mqtt::register_mqtt_ha_sensor(nullptr, nullptr, F_(outdoorTemp), device_type(), "outdoorTemp", F_(degrees), F_(iconexport));
         }
-        if (Helpers::hasValue(flameCurr_)) {
-            Mqtt::register_mqtt_ha_sensor(nullptr, nullptr, F_(flameCurr), device_type(), "flameCurr", F_(uA), F_(iconflash));
+        if (Helpers::hasValue(curFlowTemp_)) {
+            Mqtt::register_mqtt_ha_sensor(nullptr, nullptr, F_(curFlowTemp), device_type(), "curFlowTemp", F_(degrees), F_(iconwatertemp));
         }
-        if (Helpers::hasValue(ignWork_)) {
-            Mqtt::register_mqtt_ha_sensor(nullptr, nullptr, F_(ignWork), device_type(), "ignWork", nullptr, F_(iconflash));
+        if (Helpers::hasValue(retTemp_)) {
+            Mqtt::register_mqtt_ha_sensor(nullptr, nullptr, F_(retTemp), device_type(), "retTemp", F_(degrees), F_(iconwatertemp));
         }
-        if (Helpers::hasValue(exhaustTemp_)) {
-            Mqtt::register_mqtt_ha_sensor(nullptr, nullptr, F_(exhaustTemp), device_type(), "exhaustTemp", F_(degrees), F_(iconwatertemp));
+        if (Helpers::hasValue(heatingPump_)) {
+            Mqtt::register_mqtt_ha_sensor(nullptr, nullptr, F_(heatingPump), device_type(), "heatingPump", nullptr, F_(iconpump));
         }
-        if (Helpers::hasValue(pumpModMax_)) {
-            Mqtt::register_mqtt_ha_sensor(nullptr, nullptr, F_(pumpModMax), device_type(), "pumpModMax", F_(percent), F_(iconpercent));
+        if (Helpers::hasValue(burnGas_)) {
+            Mqtt::register_mqtt_ha_sensor(nullptr, nullptr, F_(burnGas), device_type(), "burnGas", nullptr, F_(iconfire));
         }
-        if (Helpers::hasValue(pumpModMin_)) {
-            Mqtt::register_mqtt_ha_sensor(nullptr, nullptr, F_(pumpModMin), device_type(), "pumpModMin", F_(percent), F_(iconpercent));
+        if (Helpers::hasValue(fanWork_)) {
+            Mqtt::register_mqtt_ha_sensor(nullptr, nullptr, F_(fanWork), device_type(), "fanWork", nullptr, F_(iconfan));
         }
-        if (Helpers::hasValue(pumpDelay_)) {
-            Mqtt::register_mqtt_ha_sensor(nullptr, nullptr, F_(pumpDelay), device_type(), "pumpDelay", F_(min), nullptr);
+        if (Helpers::hasValue(heatingActivated_)) {
+            Mqtt::register_mqtt_ha_sensor(nullptr, nullptr, F_(heatingActivated), device_type(), "heatingActivated", nullptr, nullptr);
         }
-        if (Helpers::hasValue(heatWorkMin_)) {
-            Mqtt::register_mqtt_ha_sensor(nullptr, nullptr, F_(heatWorkMin), device_type(), "heatWorkMin", F_(min), nullptr);
+        if (Helpers::hasValue(heatingTemp_)) {
+            Mqtt::register_mqtt_ha_sensor(nullptr, nullptr, F_(heatingTemp), device_type(), "heatingTemp", F_(degrees), F_(iconwatertemp));
         }
-        if (Helpers::hasValue(UBAuptime_)) {
-            Mqtt::register_mqtt_ha_sensor(nullptr, nullptr, F_(UBAuptime), device_type(), "UBAuptime", F_(min), nullptr);
+        if (Helpers::hasValue(burnMinPeriod_)) {
+            Mqtt::register_mqtt_ha_sensor(nullptr, nullptr, F_(burnMinPeriod), device_type(), "burnMinPeriod", F_(min), nullptr);
         }
-        if (Helpers::hasValue(maintenanceMessage_)) {
-            Mqtt::register_mqtt_ha_sensor(nullptr, nullptr, F_(maintenanceMessage), device_type(), "maintenanceMessage", nullptr, nullptr);
+        if (Helpers::hasValue(burnMinPower_)) {
+            Mqtt::register_mqtt_ha_sensor(nullptr, nullptr, F_(burnMinPower), device_type(), "burnMinPower", F_(percent), F_(iconpercent));
         }
-        if (Helpers::hasValue(maintenanceType_)) {
-            Mqtt::register_mqtt_ha_sensor(nullptr, nullptr, F_(maintenance), device_type(), "maintenance", nullptr, nullptr);
-        }
-        // optional etra values for date and time if not handled by maintenance
-        // if (Helpers::hasValue(maintenanceTime_)) {
-        //      Mqtt::register_mqtt_ha_sensor(nullptr, F_(mqtt_suffix_info), F_(maintenanceTime), device_type(), "maintenanceTime", F_(hours), nullptr);
-        // }
-        // if (strlen(maintenanceDate_) > 0) {
-        //      Mqtt::register_mqtt_ha_sensor(nullptr, F_(mqtt_suffix_info), F_(maintenanceDate), device_type(), "maintenanceDate", nullptr, nullptr);
-        // }
-        if (Helpers::hasValue(mixerTemp_)) {
-            Mqtt::register_mqtt_ha_sensor(nullptr, nullptr, F_(mixerTemp), device_type(), "mixerTemp", F_(degrees), nullptr);
-        }
-        if (Helpers::hasValue(tankMiddleTemp_)) {
-            Mqtt::register_mqtt_ha_sensor(nullptr, nullptr, F_(tankMiddleTemp), device_type(), "tankMiddleTemp", F_(degrees), nullptr);
+        if (Helpers::hasValue(burnMaxPower_)) {
+            Mqtt::register_mqtt_ha_sensor(nullptr, nullptr, F_(burnMaxPower), device_type(), "burnMaxPower", F_(percent), F_(iconpercent));
         }
     }
-    // information for heatpumps
-    if (model() == EMSdevice::EMS_DEVICE_FLAG_HEATPUMP) {
-        Mqtt::register_mqtt_ha_sensor(nullptr, F_(mqtt_suffix_info), F_(upTimeControl), device_type(), "upTimeControl", F_(min), nullptr);
-        Mqtt::register_mqtt_ha_sensor(nullptr, F_(mqtt_suffix_info), F_(upTimeCompHeating), device_type(), "upTimeCompHeating", F_(min), nullptr);
-        Mqtt::register_mqtt_ha_sensor(nullptr, F_(mqtt_suffix_info), F_(upTimeCompCooling), device_type(), "upTimeCompCooling", F_(min), nullptr);
-        Mqtt::register_mqtt_ha_sensor(nullptr, F_(mqtt_suffix_info), F_(upTimeCompWw), device_type(), "upTimeCompWw", F_(min), nullptr);
-        Mqtt::register_mqtt_ha_sensor(nullptr, F_(mqtt_suffix_info), F_(heatingStarts), device_type(), "heatingStarts", nullptr, nullptr);
-        Mqtt::register_mqtt_ha_sensor(nullptr, F_(mqtt_suffix_info), F_(coolingStarts), device_type(), "coolingStarts_", nullptr, nullptr);
-        Mqtt::register_mqtt_ha_sensor(nullptr, F_(mqtt_suffix_info), F_(wWStarts2), device_type(), "wWStarts2", nullptr, nullptr);
-        Mqtt::register_mqtt_ha_sensor(nullptr, F_(mqtt_suffix_info), F_(nrgConsTotal), device_type(), "nrgConsTotal", F_(kwh), nullptr);
-        Mqtt::register_mqtt_ha_sensor(nullptr, F_(mqtt_suffix_info), F_(auxElecHeatNrgConsTotal), device_type(), "auxElecHeatNrgConsTotal_", F_(kwh), nullptr);
-        Mqtt::register_mqtt_ha_sensor(nullptr, F_(mqtt_suffix_info), F_(auxElecHeatNrgConsHeating), device_type(), "auxElecHeatNrgConsHeating", F_(kwh), nullptr);
-        Mqtt::register_mqtt_ha_sensor(nullptr, F_(mqtt_suffix_info), F_(auxElecHeatNrgConsDHW), device_type(), "auxElecHeatNrgConsDHW", F_(kwh), nullptr);
-        Mqtt::register_mqtt_ha_sensor(nullptr, F_(mqtt_suffix_info), F_(nrgConsCompTotal), device_type(), "nrgConsCompTotal", F_(kwh), nullptr);
-        Mqtt::register_mqtt_ha_sensor(nullptr, F_(mqtt_suffix_info), F_(nrgConsCompHeating), device_type(), "nrgConsCompHeating", F_(kwh), nullptr);
-        Mqtt::register_mqtt_ha_sensor(nullptr, F_(mqtt_suffix_info), F_(nrgConsCompWw), device_type(), "nrgConsCompWw", F_(kwh), nullptr);
-        Mqtt::register_mqtt_ha_sensor(nullptr, F_(mqtt_suffix_info), F_(nrgConsCompCooling), device_type(), "nrgConsCompCooling", F_(kwh), nullptr);
-        Mqtt::register_mqtt_ha_sensor(nullptr, F_(mqtt_suffix_info), F_(nrgSuppTotal), device_type(), "nrgSuppTotal_", F_(kwh), nullptr);
-        Mqtt::register_mqtt_ha_sensor(nullptr, F_(mqtt_suffix_info), F_(nrgSuppHeating), device_type(), "nrgSuppHeating", F_(kwh), nullptr);
-        Mqtt::register_mqtt_ha_sensor(nullptr, F_(mqtt_suffix_info), F_(nrgSuppWw), device_type(), "nrgSuppWw", F_(kwh), nullptr);
-        Mqtt::register_mqtt_ha_sensor(nullptr, F_(mqtt_suffix_info), F_(nrgSuppCooling), device_type(), "nrgSuppCooling", F_(kwh), nullptr);
+    else if (mqtt_ha_config_ == 1) {
+        if (Helpers::hasValue(boilHystOn_)) {
+            Mqtt::register_mqtt_ha_sensor(nullptr, nullptr, F_(boilHystOn), device_type(), "boilHystOn", F_(degrees), F_(iconwatertemp));
+        }
+        if (Helpers::hasValue(boilHystOff_)) {
+            Mqtt::register_mqtt_ha_sensor(nullptr, nullptr, F_(boilHystOff), device_type(), "boilHystOff", F_(degrees), F_(iconwatertemp));
+        }
+        if (Helpers::hasValue(setFlowTemp_)) {
+            Mqtt::register_mqtt_ha_sensor(nullptr, nullptr, F_(setFlowTemp), device_type(), "setFlowTemp", F_(degrees), F_(iconwatertemp));
+        }
+        if (Helpers::hasValue(setBurnPow_)) {
+            Mqtt::register_mqtt_ha_sensor(nullptr, nullptr, F_(setBurnPow), device_type(), "setBurnPow", F_(percent), F_(iconpercent));
+        }
+        if (Helpers::hasValue(burnStarts_)) {
+            Mqtt::register_mqtt_ha_sensor(nullptr, nullptr, F_(burnStarts), device_type(), "burnStarts", nullptr, nullptr);
+        }
+        if (Helpers::hasValue(burnWorkMin_)) {
+            Mqtt::register_mqtt_ha_sensor(nullptr, nullptr, F_(burnWorkMin), device_type(), "burnWorkMin", F_(min), nullptr);
+        }
+    }
+    else if (mqtt_ha_config_ == 2) {
+        // values should be sent if hasValues checks to false, but I see MQTT messages for non iRT sensors, so avoid sending it by tx-Mode
+        if (EMSbus::tx_mode() <= EMS_TXMODE_HW) {
+            if (Helpers::hasValue(heatingPumpMod_)) {
+                Mqtt::register_mqtt_ha_sensor(nullptr, nullptr, F_(heatingPumpMod), device_type(), "heatingPumpMod", F_(percent), F_(iconpercent));
+            }
+            if (Helpers::hasValue(heatingPump2Mod_)) {
+                Mqtt::register_mqtt_ha_sensor(nullptr, nullptr, F_(heatingPump2Mod), device_type(), "heatingPump2Mod", F_(percent), F_(iconpercent));
+            }
+            if (Helpers::hasValue(switchTemp_)) {
+                Mqtt::register_mqtt_ha_sensor(nullptr, nullptr, F_(switchTemp), device_type(), "switchTemp", F_(degrees), F_(iconwatertemp));
+            }
+            if (Helpers::hasValue(sysPress_)) {
+                Mqtt::register_mqtt_ha_sensor(nullptr, nullptr, F_(sysPress), device_type(), "sysPress", F_(bar), nullptr);
+            }
+            if (Helpers::hasValue(boilTemp_)) {
+                Mqtt::register_mqtt_ha_sensor(nullptr, nullptr, F_(boilTemp), device_type(), "boilTemp", F_(degrees), nullptr);
+            }
+            if (Helpers::hasValue(flameCurr_)) {
+                Mqtt::register_mqtt_ha_sensor(nullptr, nullptr, F_(flameCurr), device_type(), "flameCurr", F_(uA), F_(iconflash));
+            }
+            if (Helpers::hasValue(ignWork_)) {
+                Mqtt::register_mqtt_ha_sensor(nullptr, nullptr, F_(ignWork), device_type(), "ignWork", nullptr, F_(iconflash));
+            }
+            if (Helpers::hasValue(exhaustTemp_)) {
+                Mqtt::register_mqtt_ha_sensor(nullptr, nullptr, F_(exhaustTemp), device_type(), "exhaustTemp", F_(degrees), F_(iconwatertemp));
+            }
+            if (Helpers::hasValue(pumpModMax_)) {
+                Mqtt::register_mqtt_ha_sensor(nullptr, nullptr, F_(pumpModMax), device_type(), "pumpModMax", F_(percent), F_(iconpercent));
+            }
+            if (Helpers::hasValue(pumpModMin_)) {
+                Mqtt::register_mqtt_ha_sensor(nullptr, nullptr, F_(pumpModMin), device_type(), "pumpModMin", F_(percent), F_(iconpercent));
+            }
+            if (Helpers::hasValue(pumpDelay_)) {
+                Mqtt::register_mqtt_ha_sensor(nullptr, nullptr, F_(pumpDelay), device_type(), "pumpDelay", F_(min), nullptr);
+            }
+            if (Helpers::hasValue(heatWorkMin_)) {
+                Mqtt::register_mqtt_ha_sensor(nullptr, nullptr, F_(heatWorkMin), device_type(), "heatWorkMin", F_(min), nullptr);
+            }
+            if (Helpers::hasValue(UBAuptime_)) {
+                Mqtt::register_mqtt_ha_sensor(nullptr, nullptr, F_(UBAuptime), device_type(), "UBAuptime", F_(min), nullptr);
+            }
+            if (Helpers::hasValue(maintenanceMessage_)) {
+                Mqtt::register_mqtt_ha_sensor(nullptr, nullptr, F_(maintenanceMessage), device_type(), "maintenanceMessage", nullptr, nullptr);
+            }
+            if (Helpers::hasValue(maintenanceType_)) {
+                Mqtt::register_mqtt_ha_sensor(nullptr, nullptr, F_(maintenance), device_type(), "maintenance", nullptr, nullptr);
+            }
+            // optional etra values for date and time if not handled by maintenance
+            // if (Helpers::hasValue(maintenanceTime_)) {
+            //      Mqtt::register_mqtt_ha_sensor(nullptr, F_(mqtt_suffix_info), F_(maintenanceTime), device_type(), "maintenanceTime", F_(hours), nullptr);
+            // }
+            // if (strlen(maintenanceDate_) > 0) {
+            //      Mqtt::register_mqtt_ha_sensor(nullptr, F_(mqtt_suffix_info), F_(maintenanceDate), device_type(), "maintenanceDate", nullptr, nullptr);
+            // }
+            if (Helpers::hasValue(mixerTemp_)) {
+                Mqtt::register_mqtt_ha_sensor(nullptr, nullptr, F_(mixerTemp), device_type(), "mixerTemp", F_(degrees), nullptr);
+            }
+            if (Helpers::hasValue(tankMiddleTemp_)) {
+                Mqtt::register_mqtt_ha_sensor(nullptr, nullptr, F_(tankMiddleTemp), device_type(), "tankMiddleTemp", F_(degrees), nullptr);
+            }
+        }
+    }
+    else if (mqtt_ha_config_ == 3) {
+        // information for heatpumps
+        if (model() == EMSdevice::EMS_DEVICE_FLAG_HEATPUMP) {
+            Mqtt::register_mqtt_ha_sensor(nullptr, F_(mqtt_suffix_info), F_(upTimeControl), device_type(), "upTimeControl", F_(min), nullptr);
+            Mqtt::register_mqtt_ha_sensor(nullptr, F_(mqtt_suffix_info), F_(upTimeCompHeating), device_type(), "upTimeCompHeating", F_(min), nullptr);
+            Mqtt::register_mqtt_ha_sensor(nullptr, F_(mqtt_suffix_info), F_(upTimeCompCooling), device_type(), "upTimeCompCooling", F_(min), nullptr);
+            Mqtt::register_mqtt_ha_sensor(nullptr, F_(mqtt_suffix_info), F_(upTimeCompWw), device_type(), "upTimeCompWw", F_(min), nullptr);
+            Mqtt::register_mqtt_ha_sensor(nullptr, F_(mqtt_suffix_info), F_(heatingStarts), device_type(), "heatingStarts", nullptr, nullptr);
+            Mqtt::register_mqtt_ha_sensor(nullptr, F_(mqtt_suffix_info), F_(coolingStarts), device_type(), "coolingStarts_", nullptr, nullptr);
+            Mqtt::register_mqtt_ha_sensor(nullptr, F_(mqtt_suffix_info), F_(wWStarts2), device_type(), "wWStarts2", nullptr, nullptr);
+            Mqtt::register_mqtt_ha_sensor(nullptr, F_(mqtt_suffix_info), F_(nrgConsTotal), device_type(), "nrgConsTotal", F_(kwh), nullptr);
+            Mqtt::register_mqtt_ha_sensor(nullptr, F_(mqtt_suffix_info), F_(auxElecHeatNrgConsTotal), device_type(), "auxElecHeatNrgConsTotal_", F_(kwh), nullptr);
+            Mqtt::register_mqtt_ha_sensor(nullptr, F_(mqtt_suffix_info), F_(auxElecHeatNrgConsHeating), device_type(), "auxElecHeatNrgConsHeating", F_(kwh), nullptr);
+            Mqtt::register_mqtt_ha_sensor(nullptr, F_(mqtt_suffix_info), F_(auxElecHeatNrgConsDHW), device_type(), "auxElecHeatNrgConsDHW", F_(kwh), nullptr);
+            Mqtt::register_mqtt_ha_sensor(nullptr, F_(mqtt_suffix_info), F_(nrgConsCompTotal), device_type(), "nrgConsCompTotal", F_(kwh), nullptr);
+            Mqtt::register_mqtt_ha_sensor(nullptr, F_(mqtt_suffix_info), F_(nrgConsCompHeating), device_type(), "nrgConsCompHeating", F_(kwh), nullptr);
+            Mqtt::register_mqtt_ha_sensor(nullptr, F_(mqtt_suffix_info), F_(nrgConsCompWw), device_type(), "nrgConsCompWw", F_(kwh), nullptr);
+            Mqtt::register_mqtt_ha_sensor(nullptr, F_(mqtt_suffix_info), F_(nrgConsCompCooling), device_type(), "nrgConsCompCooling", F_(kwh), nullptr);
+            Mqtt::register_mqtt_ha_sensor(nullptr, F_(mqtt_suffix_info), F_(nrgSuppTotal), device_type(), "nrgSuppTotal_", F_(kwh), nullptr);
+            Mqtt::register_mqtt_ha_sensor(nullptr, F_(mqtt_suffix_info), F_(nrgSuppHeating), device_type(), "nrgSuppHeating", F_(kwh), nullptr);
+            Mqtt::register_mqtt_ha_sensor(nullptr, F_(mqtt_suffix_info), F_(nrgSuppWw), device_type(), "nrgSuppWw", F_(kwh), nullptr);
+            Mqtt::register_mqtt_ha_sensor(nullptr, F_(mqtt_suffix_info), F_(nrgSuppCooling), device_type(), "nrgSuppCooling", F_(kwh), nullptr);
+        }
     }
     // Mqtt::register_mqtt_ha_sensor(nullptr, F_(mqtt_suffix_info), F_(maintenanceMessage), device_type(), "maintenanceMessage", nullptr, nullptr);
     // Mqtt::register_mqtt_ha_sensor(nullptr, F_(mqtt_suffix_info), F_(maintenance), device_type(), "maintenance", nullptr, nullptr);
     // Mqtt::register_mqtt_ha_sensor(nullptr, F_(mqtt_suffix_info), F_(maintenanceTime), device_type(), "maintenanceTime", F_(hours), nullptr);
     // Mqtt::register_mqtt_ha_sensor(nullptr, F_(mqtt_suffix_info), F_(maintenanceDate), device_type(), "maintenanceDate", nullptr, nullptr);
 
-    mqtt_ha_config_ = true; // done
+    mqtt_ha_config_++; // done
 }
 
 // create the config topics for Home Assistant MQTT Discovery
@@ -335,92 +344,97 @@ void Boiler::register_mqtt_ha_config_ww() {
         return;
     }
 
-    // ww
-    if (Helpers::hasValue(wWSelTemp_)) {
-        Mqtt::register_mqtt_ha_sensor(nullptr, F_(mqtt_suffix_ww), F_(wWSelTemp), device_type(), "wWSelTemp", F_(degrees), F_(iconcruise));
+    if (mqtt_ha_config_ww_ == 0) {
+        // ww
+        if (Helpers::hasValue(wWSelTemp_)) {
+            Mqtt::register_mqtt_ha_sensor(nullptr, F_(mqtt_suffix_ww), F_(wWSelTemp), device_type(), "wWSelTemp", F_(degrees), F_(iconcruise));
+        }
+        if (Helpers::hasValue(wWSetTemp_)) {
+            Mqtt::register_mqtt_ha_sensor(nullptr, F_(mqtt_suffix_ww), F_(wWSetTemp), device_type(), "wWSetTemp", F_(degrees), F_(iconwatertemp));
+        }
+        if (Helpers::hasValue(wWCurTemp_)) {
+            Mqtt::register_mqtt_ha_sensor(nullptr, F_(mqtt_suffix_ww), F_(wWCurTemp), device_type(), "wWCurTemp", F_(degrees), F_(iconwatertemp));
+        }
+        if (Helpers::hasValue(ww3wayValve_)) {
+            Mqtt::register_mqtt_ha_sensor(nullptr, F_(mqtt_suffix_ww), F_(ww3wayValve), device_type(), "ww3wayValve", nullptr, F_(iconvalve));
+        }
+        if (Helpers::hasValue(wWActivated_)) {
+            Mqtt::register_mqtt_ha_sensor(nullptr, F_(mqtt_suffix_ww), F_(wWActivated), device_type(), "wWActivated", nullptr, nullptr);
+        }
+        if (Helpers::hasValue(wWActive_)) {
+            Mqtt::register_mqtt_ha_sensor(nullptr, F_(mqtt_suffix_ww), F_(wWActive), device_type(), "wWActive", nullptr, nullptr);
+        }
+        Mqtt::register_mqtt_ha_sensor(nullptr, F_(mqtt_suffix_info), F_(gasReading), device_type(), "gasReading", nullptr, nullptr);
     }
-    if (Helpers::hasValue(wWSetTemp_)) {
-        Mqtt::register_mqtt_ha_sensor(nullptr, F_(mqtt_suffix_ww), F_(wWSetTemp), device_type(), "wWSetTemp", F_(degrees), F_(iconwatertemp));
-    }
-    if (Helpers::hasValue(wWCurTemp_)) {
-        Mqtt::register_mqtt_ha_sensor(nullptr, F_(mqtt_suffix_ww), F_(wWCurTemp), device_type(), "wWCurTemp", F_(degrees), F_(iconwatertemp));
-    }
-    if (Helpers::hasValue(ww3wayValve_)) {
-        Mqtt::register_mqtt_ha_sensor(nullptr, F_(mqtt_suffix_ww), F_(ww3wayValve), device_type(), "ww3wayValve", nullptr, F_(iconvalve));
-    }
-    if (Helpers::hasValue(wWActivated_)) {
-        Mqtt::register_mqtt_ha_sensor(nullptr, F_(mqtt_suffix_ww), F_(wWActivated), device_type(), "wWActivated", nullptr, nullptr);
-    }
-    if (Helpers::hasValue(wWActive_)) {
-        Mqtt::register_mqtt_ha_sensor(nullptr, F_(mqtt_suffix_ww), F_(wWActive), device_type(), "wWActive", nullptr, nullptr);
-    }
-    // values should be sent if hasValues checks to false, but I see MQTT messages for non iRT sensors, so avoid sending it by tx-Mode
-    if (EMSbus::tx_mode() <= EMS_TXMODE_HW) {
-        if (Helpers::hasValue(wWDisinfectionTemp_)) {
-            Mqtt::register_mqtt_ha_sensor(nullptr, F_(mqtt_suffix_ww), F_(wWDisinfectionTemp), device_type(), "wWDisinfectionTemp", F_(degrees), F_(iconwatertemp));
-        }
-        if (Helpers::hasValue(wWType_)) {
-            Mqtt::register_mqtt_ha_sensor(nullptr, F_(mqtt_suffix_ww), F_(wWType), device_type(), "wWType", nullptr, nullptr);
-        }
-        if (Helpers::hasValue(wWChargeType_)) {
-            Mqtt::register_mqtt_ha_sensor(nullptr, F_(mqtt_suffix_ww), F_(wWChargeType), device_type(), "wWChargeType", nullptr, nullptr);
-        }
-        if (Helpers::hasValue(wWCircPump_)) {
-            Mqtt::register_mqtt_ha_sensor(nullptr, F_(mqtt_suffix_ww), F_(wWCircPump), device_type(), "wWCircPump", nullptr, nullptr);
-        }
-        if (Helpers::hasValue(wWCircPumpMode_)) {
-            Mqtt::register_mqtt_ha_sensor(nullptr, F_(mqtt_suffix_ww), F_(wWCircPumpMode), device_type(), "wWCircPumpMode", nullptr, nullptr);
-        }
-        if (Helpers::hasValue(wWCirc_)) {
-            Mqtt::register_mqtt_ha_sensor(nullptr, F_(mqtt_suffix_ww), F_(wWCirc), device_type(), "wWCirc", nullptr, nullptr);
-        }
-        if (Helpers::hasValue(wWCurTemp2_)) {
-            Mqtt::register_mqtt_ha_sensor(nullptr, F_(mqtt_suffix_ww), F_(wWCurTemp2), device_type(), "wWCurTemp2", F_(degrees), F_(iconwatertemp));
-        }
-        if (Helpers::hasValue(wWCurFlow_)) {
-            Mqtt::register_mqtt_ha_sensor(nullptr, F_(mqtt_suffix_ww), F_(wWCurFlow), device_type(), "wWCurFlow", F("l/min"), F_(iconwatertemp));
-        }
-        if (Helpers::hasValue(wWStorageTemp1_)) {
-            Mqtt::register_mqtt_ha_sensor(nullptr, F_(mqtt_suffix_ww), F_(wWStorageTemp1), device_type(), "wWStorageTemp1", F_(degrees), F_(iconwatertemp));
-        }
-        if (Helpers::hasValue(wWStorageTemp2_)) {
-            Mqtt::register_mqtt_ha_sensor(nullptr, F_(mqtt_suffix_ww), F_(wWStorageTemp2), device_type(), "wWStorageTemp2", F_(degrees), F_(iconwatertemp));
-        }
-        if (Helpers::hasValue(wWOneTime_)) {
-            Mqtt::register_mqtt_ha_sensor(nullptr, F_(mqtt_suffix_ww), F_(wWOneTime), device_type(), "wWOneTime", nullptr, nullptr);
-        }
-        if (Helpers::hasValue(wWDisinfecting_)) {
-            Mqtt::register_mqtt_ha_sensor(nullptr, F_(mqtt_suffix_ww), F_(wWDisinfecting), device_type(), "wWDisinfecting", nullptr, nullptr);
-        }
-        if (Helpers::hasValue(wWCharging_)) {
-            Mqtt::register_mqtt_ha_sensor(nullptr, F_(mqtt_suffix_ww), F_(wWCharging), device_type(), "wWCharging", nullptr, nullptr);
-        }
-        if (Helpers::hasValue(wWRecharging_)) {
-            Mqtt::register_mqtt_ha_sensor(nullptr, F_(mqtt_suffix_ww), F_(wWRecharging), device_type(), "wWRecharging", nullptr, nullptr);
-        }
-        if (Helpers::hasValue(wWTempOK_)) {
-            Mqtt::register_mqtt_ha_sensor(nullptr, F_(mqtt_suffix_ww), F_(wWTempOK), device_type(), "wWTempOK", nullptr, nullptr);
-        }
-        if (Helpers::hasValue(wWSetPumpPower_)) {
-            Mqtt::register_mqtt_ha_sensor(nullptr, F_(mqtt_suffix_ww), F_(wWSetPumpPower), device_type(), "wWSetPumpPower", F_(percent), F_(iconpump));
-        }
-        if (Helpers::hasValue(wWStarts_)) {
-            Mqtt::register_mqtt_ha_sensor(nullptr, F_(mqtt_suffix_ww), F_(wWStarts), device_type(), "wWStarts", nullptr, nullptr);
-        }
-        if (Helpers::hasValue(wWWorkM_)) {
-            Mqtt::register_mqtt_ha_sensor(nullptr, F_(mqtt_suffix_ww), F_(wWWorkM), device_type(), "wWWorkM", F_(min), nullptr);
-        }
-        if (Helpers::hasValue(wWMaxPower_)) {
-            Mqtt::register_mqtt_ha_sensor(nullptr, F_(mqtt_suffix_ww), F_(wWMaxPower), device_type(), "wWMaxPower", F_(percent), nullptr);
+    else if (mqtt_ha_config_ww_ == 1) {
+        // values should be sent if hasValues checks to false, but I see MQTT messages for non iRT sensors, so avoid sending it by tx-Mode
+        if (EMSbus::tx_mode() <= EMS_TXMODE_HW) {
+            if (Helpers::hasValue(wWDisinfectionTemp_)) {
+                Mqtt::register_mqtt_ha_sensor(nullptr, F_(mqtt_suffix_ww), F_(wWDisinfectionTemp), device_type(), "wWDisinfectionTemp", F_(degrees), F_(iconwatertemp));
+            }
+            if (Helpers::hasValue(wWType_)) {
+                Mqtt::register_mqtt_ha_sensor(nullptr, F_(mqtt_suffix_ww), F_(wWType), device_type(), "wWType", nullptr, nullptr);
+            }
+            if (Helpers::hasValue(wWChargeType_)) {
+                Mqtt::register_mqtt_ha_sensor(nullptr, F_(mqtt_suffix_ww), F_(wWChargeType), device_type(), "wWChargeType", nullptr, nullptr);
+            }
+            if (Helpers::hasValue(wWCircPump_)) {
+                Mqtt::register_mqtt_ha_sensor(nullptr, F_(mqtt_suffix_ww), F_(wWCircPump), device_type(), "wWCircPump", nullptr, nullptr);
+            }
+            if (Helpers::hasValue(wWCircPumpMode_)) {
+                Mqtt::register_mqtt_ha_sensor(nullptr, F_(mqtt_suffix_ww), F_(wWCircPumpMode), device_type(), "wWCircPumpMode", nullptr, nullptr);
+            }
+            if (Helpers::hasValue(wWCirc_)) {
+                Mqtt::register_mqtt_ha_sensor(nullptr, F_(mqtt_suffix_ww), F_(wWCirc), device_type(), "wWCirc", nullptr, nullptr);
+            }
+            if (Helpers::hasValue(wWCurTemp2_)) {
+                Mqtt::register_mqtt_ha_sensor(nullptr, F_(mqtt_suffix_ww), F_(wWCurTemp2), device_type(), "wWCurTemp2", F_(degrees), F_(iconwatertemp));
+            }
+            if (Helpers::hasValue(wWCurFlow_)) {
+                Mqtt::register_mqtt_ha_sensor(nullptr, F_(mqtt_suffix_ww), F_(wWCurFlow), device_type(), "wWCurFlow", F("l/min"), F_(iconwatertemp));
+            }
+            if (Helpers::hasValue(wWStorageTemp1_)) {
+                Mqtt::register_mqtt_ha_sensor(nullptr, F_(mqtt_suffix_ww), F_(wWStorageTemp1), device_type(), "wWStorageTemp1", F_(degrees), F_(iconwatertemp));
+            }
+            if (Helpers::hasValue(wWStorageTemp2_)) {
+                Mqtt::register_mqtt_ha_sensor(nullptr, F_(mqtt_suffix_ww), F_(wWStorageTemp2), device_type(), "wWStorageTemp2", F_(degrees), F_(iconwatertemp));
+            }
+            if (Helpers::hasValue(wWOneTime_)) {
+                Mqtt::register_mqtt_ha_sensor(nullptr, F_(mqtt_suffix_ww), F_(wWOneTime), device_type(), "wWOneTime", nullptr, nullptr);
+            }
+            if (Helpers::hasValue(wWDisinfecting_)) {
+                Mqtt::register_mqtt_ha_sensor(nullptr, F_(mqtt_suffix_ww), F_(wWDisinfecting), device_type(), "wWDisinfecting", nullptr, nullptr);
+            }
+            if (Helpers::hasValue(wWCharging_)) {
+                Mqtt::register_mqtt_ha_sensor(nullptr, F_(mqtt_suffix_ww), F_(wWCharging), device_type(), "wWCharging", nullptr, nullptr);
+            }
+            if (Helpers::hasValue(wWRecharging_)) {
+                Mqtt::register_mqtt_ha_sensor(nullptr, F_(mqtt_suffix_ww), F_(wWRecharging), device_type(), "wWRecharging", nullptr, nullptr);
+            }
+            if (Helpers::hasValue(wWTempOK_)) {
+                Mqtt::register_mqtt_ha_sensor(nullptr, F_(mqtt_suffix_ww), F_(wWTempOK), device_type(), "wWTempOK", nullptr, nullptr);
+            }
+            if (Helpers::hasValue(wWSetPumpPower_)) {
+                Mqtt::register_mqtt_ha_sensor(nullptr, F_(mqtt_suffix_ww), F_(wWSetPumpPower), device_type(), "wWSetPumpPower", F_(percent), F_(iconpump));
+            }
+            if (Helpers::hasValue(wWStarts_)) {
+                Mqtt::register_mqtt_ha_sensor(nullptr, F_(mqtt_suffix_ww), F_(wWStarts), device_type(), "wWStarts", nullptr, nullptr);
+            }
+            if (Helpers::hasValue(wWWorkM_)) {
+                Mqtt::register_mqtt_ha_sensor(nullptr, F_(mqtt_suffix_ww), F_(wWWorkM), device_type(), "wWWorkM", F_(min), nullptr);
+            }
+            if (Helpers::hasValue(wWMaxPower_)) {
+                Mqtt::register_mqtt_ha_sensor(nullptr, F_(mqtt_suffix_ww), F_(wWMaxPower), device_type(), "wWMaxPower", F_(percent), nullptr);
+            }
         }
     }
-    mqtt_ha_config_ww_ = true; // done
+    mqtt_ha_config_ww_++; // done
 }
 
 // send stuff to the Web UI
 void Boiler::device_info_web(JsonArray & root, uint8_t & part) {
     // fetch the values into a JSON document
-    DynamicJsonDocument doc(EMSESP_MAX_JSON_SIZE_LARGE);
+    DynamicJsonDocument doc(EMSESP_MAX_JSON_SIZE_LARGE_DYN);
     //StaticJsonDocument<EMSESP_MAX_JSON_SIZE_LARGE> doc;
     JsonObject                                     json = doc.to<JsonObject>();
     if (part == 0) {
@@ -502,6 +516,7 @@ void Boiler::device_info_web(JsonArray & root, uint8_t & part) {
         create_value_json(root, F("wWSetPumpPower"), nullptr, F_(wWSetPumpPower), F_(percent), json);
         create_value_json(root, F("wWStarts"), nullptr, F_(wWStarts), nullptr, json);
         create_value_json(root, F("wWWorkM"), nullptr, F_(wWWorkM), nullptr, json);
+        create_value_json(root, F("gasReading"), nullptr, F_(gasReading), F_(meter3), json);
     } else if (part == 2) {
         part = 0;                              // no more parts
         if (!export_values_info(json, true)) { // append info values
@@ -660,6 +675,8 @@ bool Boiler::export_values_ww(JsonObject & json, const bool textformat) {
     if (Helpers::hasValue(wWMaxPower_)) {
         json["wWMaxPower"] = wWMaxPower_;
     }
+
+    json["gasReading"] = (float)(emsesp::System::gasReading_/emsesp::System::convFactor_/4);
 
     // Warm Water active time
     Helpers::json_time(json, "wWWorkM", wWWorkM_, textformat);
@@ -1002,24 +1019,24 @@ void Boiler::publish_values(JsonObject & json, bool force) {
     LOG_DEBUG(F("[DEBUG] MQTT format: %d, ha_config: %d, ha_config_ww: %d, uptime: %d, tx_delay: %d, force: %d"), Mqtt::mqtt_format(), mqtt_ha_config_,mqtt_ha_config_ww_,uuid::get_uptime_sec(),EMSESP::tx_delay(), force);
     if (Mqtt::mqtt_format() == Mqtt::Format::HA) {
         if (force) {
-            mqtt_ha_config_    = false;
-            mqtt_ha_config_ww_ = false;
+            mqtt_ha_config_    = 0;
+            mqtt_ha_config_ww_ = 0;
         }
 
         // register ww in next cycle if both unregistered
-        if (!mqtt_ha_config_ && uuid::get_uptime_sec() > (EMSESP::tx_delay() + 60u)) {
+        if ((mqtt_ha_config_ < 3) && uuid::get_uptime_sec() > (EMSESP::tx_delay() + 60u +(uint8_t)(mqtt_ha_config_*10))) {
             LOG_DEBUG(F("[DEBUG] register MQTT HA config"));
             register_mqtt_ha_config();
             return;
-        } else if (!mqtt_ha_config_ww_ && uuid::get_uptime_sec() > (EMSESP::tx_delay() + 60u)) {
+        } else if ((mqtt_ha_config_ww_ < 2) && uuid::get_uptime_sec() > (EMSESP::tx_delay() + 60u+(uint8_t)(mqtt_ha_config_ww_*10))) {
             LOG_DEBUG(F("[DEBUG] register MQTT HA config ww"));
             register_mqtt_ha_config_ww();
             return;
         }
     }
 
-    DynamicJsonDocument doc(EMSESP_MAX_JSON_SIZE_LARGE);
-    //StaticJsonDocument<EMSESP_MAX_JSON_SIZE_LARGE> doc;
+    DynamicJsonDocument doc(EMSESP_MAX_JSON_SIZE_MEDIUM);
+    //StaticJsonDocument<EMSESP_MAX_JSON_SIZE_MEDIUM> doc;
     JsonObject                                     json_data = doc.to<JsonObject>();
     if (export_values_main(json_data)) {
         Mqtt::publish(F("boiler_data"), json_data);
@@ -1189,7 +1206,7 @@ void Boiler::process_IRTGetActBurnerPower(std::shared_ptr<const Telegram> telegr
     /* 83 C3 79 E1 00
 	 * 83 C3 79 E1 ss
 	 * ss - 0xA0 - if burner off
-	 * ss - 0x00 - 0xFF burner power: ss * 0.25 + 37 */
+	 * ss - 0x00 - 0xFF burner power: ss * 0.25 + 30 */
 	uint8_t temp;
     changed_ |= telegram->read_value(temp, 4);
     if ((temp==0xA0) && (heatingActive_==0))

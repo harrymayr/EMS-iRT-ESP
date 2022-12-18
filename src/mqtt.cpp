@@ -662,13 +662,14 @@ void Mqtt::publish_ha(const std::string & topic, const JsonObject & payload) {
 #if defined(EMSESP_STANDALONE)
     LOG_DEBUG(F("Publishing HA topic=%s, payload=%s"), topic.c_str(), payload_text.c_str());
 #else
-    LOG_DEBUG(F("Publishing HA topic %s"), topic.c_str());
+    LOG_DEBUG(F("Publishing HA topic %s size %d"), topic.c_str(), payload_text.length());
 #endif
-
-#if defined(ESP32)
+        LOG_DEBUG(F("%d queued messages"), mqtt_messages_.size());
+        queue_publish_message(topic, payload_text, true); // with retain true
+/* #if defined(ESP32)
     bool queued = true; // queue MQTT publish
 #else
-    bool queued = false; //  publish immediately
+    bool queued = true; //  queue MQTT publish if enough space on should not forced
 #endif
 
     // if MQTT is not connected, then we have to queue the msg until the MQTT is online
@@ -682,12 +683,13 @@ void Mqtt::publish_ha(const std::string & topic, const JsonObject & payload) {
     }
 
     // send immediately and then wait a while
-    if (!mqttClient_->publish(topic.c_str(), 0, true, payload_text.c_str())) {
+    if (!mqttClient_->publish(topic.c_str(), 0, true, payload_text.c_str(), payload_text.size())) {
         LOG_ERROR(F("Failed to publish topic %s"), topic.c_str());
     }
-
+    EspClass::wdtFeed();
     delay(MQTT_HA_PUBLISH_DELAY); // enough time to send the short message out
-}
+    yield();
+ */}
 
 // take top from queue and perform the publish or subscribe action
 // assumes there is an MQTT connection

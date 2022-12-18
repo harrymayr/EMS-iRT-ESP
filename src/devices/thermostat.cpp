@@ -197,7 +197,7 @@ Thermostat::Thermostat(uint8_t device_type, uint8_t device_id, uint8_t product_i
 
 // prepare data for Web UI
 void Thermostat::device_info_web(JsonArray & root, uint8_t & part) {
-    DynamicJsonDocument doc(EMSESP_MAX_JSON_SIZE_LARGE);
+    DynamicJsonDocument doc(EMSESP_MAX_JSON_SIZE_LARGE_DYN);
     //StaticJsonDocument<EMSESP_MAX_JSON_SIZE_LARGE> doc;
     JsonObject                                     json = doc.to<JsonObject>();
     if (part == 0) {
@@ -334,7 +334,7 @@ void Thermostat::publish_values(JsonObject & json, bool force) {
         }
     }
 
-    DynamicJsonDocument doc(EMSESP_MAX_JSON_SIZE_LARGE);
+    DynamicJsonDocument doc(EMSESP_MAX_JSON_SIZE_LARGE_DYN);
     //StaticJsonDocument<EMSESP_MAX_JSON_SIZE_LARGE> doc;
     JsonObject                                     json_data = doc.to<JsonObject>();
 

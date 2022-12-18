@@ -367,6 +367,7 @@ void Test::run_test(uuid::console::Shell & shell, const std::string & cmd) {
         shell.invoke_command("show");
 
         DynamicJsonDocument doc(500);
+        // StaticJsonDocument<500> doc;
         JsonObject              root = doc.to<JsonObject>();
         EMSESP::device_info_web(2, root); // show thermostat. use 1 for boiler
         serializeJsonPretty(doc, shell);

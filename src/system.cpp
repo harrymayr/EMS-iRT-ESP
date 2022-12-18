@@ -332,14 +332,17 @@ void System::loop() {
     if (syslog_enabled_) {
         syslog_.loop();
     }
+    yield();
     myPButton_.check(); // check button press
-
+    yield();
     led_monitor();  // check status and report back using the LED
+    yield();
     system_check(); // check system health
+    yield();
     if (analog_enabled_) {
         measure_analog();
     }
-
+    yield();
     // send out heartbeat
     uint32_t currentMillis = uuid::get_uptime();
     if (!last_heartbeat_ || (currentMillis - last_heartbeat_ > SYSTEM_HEARTBEAT_INTERVAL)) {
@@ -349,7 +352,8 @@ void System::loop() {
 #if defined(EMSESP_DEBUG)
     LOG_INFO(F("last burner power %d, current burner power %d"), last_burnPower_, EMSESP::current_burn_pow());
 #endif
-        if (!last_burnPower_) {
+        yield();
+        if (gasReading_ == 0) {
             EMSESP::webSettingsService.read([&](WebSettings & settings) {
                 convFactor_ = settings.conv_factor;
                 gasReading_ = settings.gas_meter_reading * convFactor_*4;
@@ -360,6 +364,7 @@ void System::loop() {
         else {
             gasReading_ = gasReading_+ (last_burnPower_ + EMSESP::current_burn_pow())*maxWhPower_  / 3000.0;
         }
+        yield();
         last_burnPower_ = EMSESP::current_burn_pow();
         if (gasReading_ - storedGasReading_ > convFactor_*4) {
                 EMSESP::webSettingsService.update(
@@ -369,6 +374,7 @@ void System::loop() {
                     },
                     "local");
             storedGasReading_ = gasReading_;
+            yield();
             EMSESP::webSettingsService.save();                                          // local settings
         }
 
@@ -436,8 +442,8 @@ void System::send_heartbeat() {
             return;
         }
     }
-        DynamicJsonDocument doc(EMSESP_MAX_JSON_SIZE_MEDIUM);
-    //StaticJsonDocument<EMSESP_MAX_JSON_SIZE_SMALL> doc;
+    DynamicJsonDocument doc(EMSESP_MAX_JSON_SIZE_MEDIUM);
+    //StaticJsonDocument<EMSESP_MAX_JSON_SIZE_MEDIUM> doc;
 
     uint8_t ems_status = EMSESP::bus_status();
     if (ems_status == EMSESP::BUS_STATUS_TX_ERRORS) {
@@ -469,8 +475,7 @@ void System::send_heartbeat() {
     if (analog_enabled_) {
         doc["adc"]      = analog_;
     }
-    doc["gasReading"]   = (float)gasReading_/convFactor_/4;
-
+    doc["gasReading"]   = (float)(gasReading_/convFactor_/4);
     Mqtt::publish(F("heartbeat"), doc.as<JsonObject>()); // send to MQTT with retain off. This will add to MQTT queue.
 }
 
@@ -883,7 +888,7 @@ bool System::check_upgrade() {
     bool                                           failed = false;
     File                                           file;
     JsonObject                                     network, general, mqtt, custom_settings;
-    DynamicJsonDocument doc(EMSESP_MAX_JSON_SIZE_LARGE);
+    DynamicJsonDocument doc(EMSESP_MAX_JSON_SIZE_LARGE_DYN);
     //StaticJsonDocument<EMSESP_MAX_JSON_SIZE_LARGE> doc;
 
     // open the system settings:

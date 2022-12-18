@@ -183,7 +183,7 @@ class Mqtt {
 #elif defined(ESP32)
     static constexpr size_t MAX_MQTT_MESSAGES = 100; // size of queue
 #else
-    static constexpr size_t MAX_MQTT_MESSAGES = 20; // size of queue
+    static constexpr size_t MAX_MQTT_MESSAGES = 25; // size of queue
 #endif
 
     static constexpr uint32_t MQTT_PUBLISH_WAIT      = 100; // delay between sending publishes, to account for large payloads

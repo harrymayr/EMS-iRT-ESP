@@ -60,8 +60,8 @@ class Boiler : public EMSdevice {
     bool export_values_info(JsonObject & doc, const bool textformat = false);
 
     bool changed_           = false;
-    bool mqtt_ha_config_    = false; // HA MQTT Discovery
-    bool mqtt_ha_config_ww_ = false; // HA MQTT Discovery
+    uint8_t mqtt_ha_config_    = 0; // HA MQTT Discovery
+    uint8_t mqtt_ha_config_ww_ = 0; // HA MQTT Discovery
 
     static constexpr uint8_t  EMS_TYPE_UBAParameterWW     = 0x33;
     static constexpr uint8_t  EMS_TYPE_UBAFunctionTest    = 0x1D;

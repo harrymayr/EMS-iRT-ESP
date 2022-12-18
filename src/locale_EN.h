@@ -142,6 +142,7 @@ MAKE_PSTR(min_boiler_wh_fmt, "Boiler minimum power = %dWh")
 MAKE_PSTR(max_boiler_wh_fmt, "Boiler maximum power = %dWh")
 MAKE_PSTR(gas_meter_reading_fmt, "Gas meter = %dm³")
 MAKE_PSTR(conv_factor_fmt, "Conversion factor m³<-> Wh = %d")
+MAKE_PSTR(gas_meter_reading, "Gas meter reading")
 
 // status
 MAKE_PSTR(wifirssi, "WiFi RSSI")

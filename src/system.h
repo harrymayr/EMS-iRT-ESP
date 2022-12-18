@@ -73,6 +73,8 @@ class System {
 
     bool check_upgrade();
     void send_heartbeat();
+    static float   gasReading_;  // calculated gas meter reading 
+    static uint16_t convFactor_; // convertion factor m³<->Wh
 
   private:
     static uuid::log::Logger logger_;
@@ -124,11 +126,9 @@ class System {
     static uint8_t led_gpio_;
     static bool    syslog_enabled_;
     static bool    analog_enabled_;
-    static float   gasReading_;  // calculated gas meter reading 
     static uint32_t maxWhPower_;  // max boiler power in Wh
     static uint32_t storedGasReading_;  // gas meter reading stored in SPIFFS
     uint32_t        last_burnPower_  = 0;
-    static uint16_t convFactor_; // convertion factor m³<->Wh
     bool    mqtt_ha_status_config = false; // HA MQTT Discovery        
 };
 
