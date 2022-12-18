@@ -7,5 +7,5 @@ Please chack out the project pages of proddy's page <https://github.com/emsesp/E
 
 **EMS/iRT-ESP** is an open-source firmware for the Espressif ESP8266 and ESP32 microcontroller that communicates with **EMS** (Energy Management System) and iRT-bus based equipment from manufacturers like Bosch, Buderus, Nefit, Junkers, Worcester and Sieger.
 
-This is the firmware for the ESP8266, known as version 2. We've since moved to the ESP32 platform with v3 which opens up many more possibilities for additional features. Make sure you check out <https://github.com/emsesp/EMS-ESP32> and look at the [demo](https://ems-esp.derbyshire.nl).
+This is the firmware for the ESP8266, known as version 2. Proddy has since moved to the ESP32 platform with v3 which opens up many more possibilities for additional features. Make sure you check out <https://github.com/emsesp/EMS-ESP32> and look at the [demo](https://ems-esp.derbyshire.nl).
 
