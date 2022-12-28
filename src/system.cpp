@@ -22,6 +22,10 @@
 #include "emsdevice.h"
 #include "version.h" // firmware version of EMS-ESP
 #include "mqtt.h"
+#if defined(ESP8266)
+#include "RTCMemory.h"
+#endif
+ADC_MODE(ADC_VCC);
 
 #if defined(ESP32)
 #include "driver/adc.h"
@@ -41,19 +45,25 @@ uuid::syslog::SyslogService System::syslog_;
 #endif
 
 // init statics
-uint32_t System::heap_start_     = 0;
+uint32_t System::heap_start_    __attribute__ ((aligned (4))) = 0;
 bool     System::upload_status_  = false;
 bool     System::hide_led_       = false;
 uint8_t  System::led_gpio_       = 0;
-uint16_t System::analog_         = 0;
 bool     System::analog_enabled_ = false;
+uint16_t System::analog_        __attribute__ ((aligned (4))) = 0;
 bool     System::syslog_enabled_ = false;
 PButton  System::myPButton_;
-float    System::gasReading_     = 0;  // calculated gas meter reading 
-uint16_t System::convFactor_     = 10300; // convertion factor m³<->Wh
-uint32_t System::maxWhPower_     = 0;  // calculated gas meter reading 
-uint32_t System::storedGasReading_= 0;  // stored gas meter reading 
+uint32_t System::gasReading_    __attribute__ ((aligned (4))) = 0;  // calculated gas meter reading 
+uint16_t System::convFactor_    __attribute__ ((aligned (4))) = 10300; // convertion factor m³<->Wh
+uint32_t System::maxWhPower_    __attribute__ ((aligned (4))) = 0;  // calculated gas meter reading 
+uint32_t System::storedGasReading_ __attribute__ ((aligned (4)))= 0;  // stored gas meter reading 
+#if defined(ESP8266)
+typedef struct {
+    int gasReadingRTC;
+} MyData;
 
+RTCMemory<MyData> rtcMemory;
+#endif
 // send on/off to a gpio pin
 // value: true = HIGH, false = LOW
 // http://ems-esp/api?device=system&cmd=pin&data=1&id=2
@@ -144,9 +154,9 @@ void System::format(uuid::console::Shell & shell) {
 // return free heap mem as a percentage
 uint8_t System::free_mem() {
 #ifndef EMSESP_STANDALONE
-    uint32_t free_memory = ESP.getFreeHeap();
+    uint32_t free_memory __attribute__ ((aligned (4))) = ESP.getFreeHeap();
 #else
-    uint32_t free_memory = 1000;
+    uint32_t free_memory __attribute__ ((aligned (4))) = 1000;
 #endif
 
     return (100 * free_memory / heap_start_);
@@ -154,7 +164,7 @@ uint8_t System::free_mem() {
 
 void System::syslog_init() {
     int8_t   syslog_level_;
-    uint32_t syslog_mark_interval_;
+    uint32_t syslog_mark_interval_ __attribute__ ((aligned (4))) ;
     String   syslog_host_;
 
     // fetch settings
@@ -229,18 +239,30 @@ void System::other_init() {
     EMSESP::webSettingsService.read([&](WebSettings & settings) {
         Helpers::bool_format(settings.bool_format);
         analog_enabled_ = settings.analog_enabled;
+        convFactor_ = settings.conv_factor;
+#if defined(ESP8266)
+        bool RTCData = rtcMemory.begin();
+        MyData *data = rtcMemory.getData();
+        if (RTCData) {
+            gasReading_ = data->gasReadingRTC;
+        }
+#endif        
+        if ((settings.gas_meter_reading < (gasReading_/ convFactor_/4)) || (settings.gas_meter_reading > (gasReading_/ convFactor_/4))){
+            gasReading_ = uint32_t(settings.gas_meter_reading * convFactor_*4);
+        }
+#if defined(ESP8266)
+        data->gasReadingRTC = gasReading_;
+        rtcMemory.save();
+#endif        
+        storedGasReading_ = settings.gas_meter_reading * convFactor_*4;
+        maxWhPower_ = settings.max_boiler_wh;
         for (const auto & emsdevice : EMSESP::emsdevices)
             if (emsdevice->device_type()==EMSdevice::DeviceType::BOILER) {
                 emsdevice->brand((uint8_t)settings.usr_brand);
                 std::string str(30, '\0');
                 snprintf_P(&str[0],str.capacity() + 1,PSTR("%s"),settings.usr_type);
                 emsdevice->name(str);
-                convFactor_ = settings.conv_factor;
-                gasReading_ = settings.gas_meter_reading * convFactor_*4;
-                storedGasReading_ = settings.gas_meter_reading * convFactor_*4;
-                maxWhPower_ = settings.max_boiler_wh;
             }
-
     });
 #ifdef ESP32
     // Wifi power settings 2 - 19.5dBm, raw values 4/dBm (8-78)
@@ -275,6 +297,7 @@ void System::button_init() {
     }
 #if defined(ESP8266)
     pinMode(4, OUTPUT);
+    pinMode(A0, INPUT);
     digitalWrite(4, 0); // set D2 to low for easy connecting D2/D3
 #endif
 
@@ -344,7 +367,7 @@ void System::loop() {
     }
     yield();
     // send out heartbeat
-    uint32_t currentMillis = uuid::get_uptime();
+    uint32_t currentMillis __attribute__ ((aligned (4))) = uuid::get_uptime();
     if (!last_heartbeat_ || (currentMillis - last_heartbeat_ > SYSTEM_HEARTBEAT_INTERVAL)) {
         last_heartbeat_ = currentMillis;
         send_heartbeat();
@@ -353,10 +376,21 @@ void System::loop() {
     LOG_INFO(F("last burner power %d, current burner power %d"), last_burnPower_, EMSESP::current_burn_pow());
 #endif
         yield();
+#if defined(ESP8266)
+        bool RTCData = rtcMemory.begin();
+        MyData *data = rtcMemory.getData();
+#endif        
         if (gasReading_ == 0) {
             EMSESP::webSettingsService.read([&](WebSettings & settings) {
                 convFactor_ = settings.conv_factor;
-                gasReading_ = settings.gas_meter_reading * convFactor_*4;
+#if defined(ESP8266)
+                if (RTCData) {
+                    gasReading_ = data->gasReadingRTC;
+                }
+#endif        
+                if ((settings.gas_meter_reading < (gasReading_/ convFactor_/4)) || (settings.gas_meter_reading > (gasReading_/ convFactor_/4))){
+                    gasReading_ = uint32_t(settings.gas_meter_reading * convFactor_*4);
+                }
                 storedGasReading_ = settings.gas_meter_reading * convFactor_*4;
                 maxWhPower_ = settings.max_boiler_wh;
             });
@@ -364,6 +398,10 @@ void System::loop() {
         else {
             gasReading_ = gasReading_+ (last_burnPower_ + EMSESP::current_burn_pow())*maxWhPower_  / 3000.0;
         }
+#if defined(ESP8266)
+        data->gasReadingRTC = gasReading_;
+        rtcMemory.save();
+#endif        
         yield();
         last_burnPower_ = EMSESP::current_burn_pow();
         if (gasReading_ - storedGasReading_ > convFactor_*4) {
@@ -382,7 +420,7 @@ void System::loop() {
 
 #if defined(ESP8266)
 #if defined(EMSESP_DEBUG)
-    static uint32_t last_memcheck_ = 0;
+    static uint32_t last_memcheck_ __attribute__ ((aligned (4))) = 0;
     if (currentMillis - last_memcheck_ > 10000) { // 10 seconds
         last_memcheck_ = currentMillis;
         show_mem("core");
@@ -475,33 +513,34 @@ void System::send_heartbeat() {
     if (analog_enabled_) {
         doc["adc"]      = analog_;
     }
-    doc["gasReading"]   = (float)(gasReading_/convFactor_/4);
+    doc["gasReading"]   = (float)gasReading_/convFactor_/4;
     Mqtt::publish(F("heartbeat"), doc.as<JsonObject>()); // send to MQTT with retain off. This will add to MQTT queue.
 }
 
 // measure and moving average adc
 void System::measure_analog() {
-    static uint32_t measure_last_ = 0;
+    static uint32_t measure_last_ __attribute__ ((aligned (4))) = 0;
 
     if (!measure_last_ || (uint32_t)(uuid::get_uptime() - measure_last_) >= SYSTEM_MEASURE_ANALOG_INTERVAL) {
         measure_last_ = uuid::get_uptime();
 #if defined(ESP8266)
         // uint16_t a = analogRead(A0); // 10 bit 3,2V
-        uint16_t a = ((analogRead(A0) * 27) / 8); // scale to esp32 result in mV
+//        uint16_t a = ((analogRead(A0) * 27) / 8); // scale to esp32 result in mV
 #elif defined(ESP32)
-        uint16_t a = analogRead(36); // arduino scale mV
+        uint16_t a __attribute__ ((aligned (4))) = analogRead(36); // arduino scale mV
 #else
-        uint16_t a = 0; // standalone
+        uint16_t a __attribute__ ((aligned (4))) = 0; // standalone
 #endif
-        static uint32_t sum_ = 0;
+//        static uint32_t sum_ __attribute__ ((aligned (4))) = 0;
 
-        if (!analog_) { // init first time
+/*         if (!analog_) { // init first time
             analog_ = a;
             sum_    = a * 512;
         } else { // simple moving average filter
             sum_    = (sum_ * 511) / 512 + a;
             analog_ = sum_ / 512;
         }
+ */        analog_ = ESP.getVcc();
     }
 }
 
@@ -513,7 +552,7 @@ void System::set_led_speed(uint32_t speed) {
 
 // check health of system, done every few seconds
 void System::system_check() {
-    static uint32_t last_system_check_ = 0;
+    static uint32_t last_system_check_ __attribute__ ((aligned (4))) = 0;
 
     if (!last_system_check_ || ((uint32_t)(uuid::get_uptime() - last_system_check_) >= SYSTEM_CHECK_FREQUENCY)) {
         last_system_check_ = uuid::get_uptime();
@@ -551,7 +590,7 @@ void System::led_monitor() {
         return;
     }
 
-    static uint32_t led_last_blink_ = 0;
+    static uint32_t led_last_blink_ __attribute__ ((aligned (4))) = 0;
 
     if (!led_last_blink_ || (uint32_t)(uuid::get_uptime() - led_last_blink_) >= led_flash_speed_) {
         led_last_blink_ = uuid::get_uptime();
@@ -575,7 +614,7 @@ int8_t System::wifi_quality() {
     if (WiFi.status() != WL_CONNECTED) {
         return -1;
     }
-    int32_t dBm = WiFi.RSSI();
+    int32_t dBm __attribute__ ((aligned (4))) = WiFi.RSSI();
     if (dBm <= -100) {
         return 0;
     }
@@ -629,6 +668,8 @@ void System::show_system(uuid::console::Shell & shell) {
     shell.printfln(F("Maximum free block size:  %lu bytes"), (unsigned long)ESP.getMaxFreeBlockSize());
     shell.printfln(F("Free continuations stack: %lu bytes"), (unsigned long)ESP.getFreeContStack());
 #endif
+    shell.printfln(F("VCC: %u V"), (float)(ESP.getVcc()/1000));
+
     shell.println();
 
     switch (WiFi.status()) {

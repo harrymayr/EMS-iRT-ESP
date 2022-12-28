@@ -160,10 +160,10 @@ class Mqtt {
 
     class QueuedMqttMessage {
       public:
-        const uint16_t                           id_;
+        const uint16_t                           id_ __attribute__ ((aligned (4)));
         const std::shared_ptr<const MqttMessage> content_;
         uint8_t                                  retry_count_;
-        uint16_t                                 packet_id_;
+        uint16_t                                 packet_id_ __attribute__ ((aligned (4)));
 
         ~QueuedMqttMessage() = default;
         QueuedMqttMessage(uint16_t id, std::shared_ptr<MqttMessage> && content)
@@ -176,7 +176,7 @@ class Mqtt {
     static std::list<QueuedMqttMessage> mqtt_messages_;
 
     static AsyncMqttClient * mqttClient_;
-    static uint16_t          mqtt_message_id_;
+    static uint16_t          mqtt_message_id_ __attribute__ ((aligned (4)));
 
 #if defined(EMSESP_STANDALONE)
     static constexpr size_t MAX_MQTT_MESSAGES = 70; // size of queue
@@ -186,8 +186,8 @@ class Mqtt {
     static constexpr size_t MAX_MQTT_MESSAGES = 25; // size of queue
 #endif
 
-    static constexpr uint32_t MQTT_PUBLISH_WAIT      = 100; // delay between sending publishes, to account for large payloads
-    static constexpr uint8_t  MQTT_PUBLISH_MAX_RETRY = 3;   // max retries for giving up on publishing
+    static constexpr uint32_t MQTT_PUBLISH_WAIT      __attribute__ ((aligned (4))) = 100; // delay between sending publishes, to account for large payloads
+    static constexpr uint8_t  MQTT_PUBLISH_MAX_RETRY __attribute__ ((aligned (4))) = 3;   // max retries for giving up on publishing
 
     static std::shared_ptr<const MqttMessage> queue_message(const uint8_t operation, const std::string & topic, const std::string & payload, bool retain);
     static std::shared_ptr<const MqttMessage> queue_publish_message(const std::string & topic, const std::string & payload, bool retain);
@@ -212,30 +212,30 @@ class Mqtt {
 
     static std::vector<MQTTSubFunction> mqtt_subfunctions_; // list of mqtt subscribe callbacks for all devices
 
-    uint32_t last_mqtt_poll_          = 0;
-    uint32_t last_publish_boiler_     = 0;
-    uint32_t last_publish_thermostat_ = 0;
-    uint32_t last_publish_solar_      = 0;
-    uint32_t last_publish_mixer_      = 0;
-    uint32_t last_publish_other_      = 0;
-    uint32_t last_publish_sensor_     = 0;
+    uint32_t last_mqtt_poll_          __attribute__ ((aligned (4))) = 0;
+    uint32_t last_publish_boiler_     __attribute__ ((aligned (4))) = 0;
+    uint32_t last_publish_thermostat_ __attribute__ ((aligned (4))) = 0;
+    uint32_t last_publish_solar_      __attribute__ ((aligned (4))) = 0;
+    uint32_t last_publish_mixer_      __attribute__ ((aligned (4))) = 0;
+    uint32_t last_publish_other_      __attribute__ ((aligned (4))) = 0;
+    uint32_t last_publish_sensor_     __attribute__ ((aligned (4))) = 0;
 
     static bool     connecting_;
     static bool     initialized_;
-    static uint16_t mqtt_publish_fails_;
+    static uint16_t mqtt_publish_fails_ __attribute__ ((aligned (4)));
     static uint8_t  connectcount_;
 
     // settings, copied over
     static std::string mqtt_base_;
     static uint8_t     mqtt_qos_;
     static bool        mqtt_retain_;
-    static uint32_t    publish_time_;
-    static uint32_t    publish_time_boiler_;
-    static uint32_t    publish_time_thermostat_;
-    static uint32_t    publish_time_solar_;
-    static uint32_t    publish_time_mixer_;
-    static uint32_t    publish_time_other_;
-    static uint32_t    publish_time_sensor_;
+    static uint32_t    publish_time_ __attribute__ ((aligned (4)));
+    static uint32_t    publish_time_boiler_ __attribute__ ((aligned (4)));
+    static uint32_t    publish_time_thermostat_ __attribute__ ((aligned (4)));
+    static uint32_t    publish_time_solar_ __attribute__ ((aligned (4)));
+    static uint32_t    publish_time_mixer_ __attribute__ ((aligned (4)));
+    static uint32_t    publish_time_other_ __attribute__ ((aligned (4)));
+    static uint32_t    publish_time_sensor_ __attribute__ ((aligned (4)));
     static uint8_t     mqtt_format_;
     static bool        mqtt_enabled_;
 };

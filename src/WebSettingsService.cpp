@@ -138,7 +138,7 @@ StateUpdateResult WebSettings::update(JsonObject & root, WebSettings & settings)
     // iRT
     snprintf_P(&crc_before[0],
                crc_before.capacity() + 1,
-               PSTR("%d%s%d%d"),
+               PSTR("%d%s%d%d%d%d"),
                settings.usr_brand,
                settings.usr_type.c_str(),
                settings.min_boiler_wh,
@@ -154,7 +154,7 @@ StateUpdateResult WebSettings::update(JsonObject & root, WebSettings & settings)
 
     snprintf_P(&crc_after[0],
                crc_after.capacity() + 1,
-               PSTR("%d%s%d%d"),
+               PSTR("%d%s%d%d%d%d"),
                settings.usr_brand,
                settings.usr_type.c_str(),
                settings.min_boiler_wh,

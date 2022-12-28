@@ -263,10 +263,10 @@ void EMSESPShell::add_console_commands() {
                           flash_string_vector{F_(deviceid_mandatory), F_(typeid_mandatory), F_(offset_optional)},
                           [=](Shell & shell __attribute__((unused)), const std::vector<std::string> & arguments) {
                               uint8_t  device_id = Helpers::hextoint(arguments.front().c_str());
-                              uint16_t type_id   = Helpers::hextoint(arguments[1].c_str());
+                              uint16_t type_id   __attribute__ ((aligned (4))) = Helpers::hextoint(arguments[1].c_str());
                               EMSESP::set_read_id(type_id);
                               if (arguments.size() == 3) {
-                                  uint16_t offset = Helpers::hextoint(arguments.back().c_str());
+                                  uint16_t offset __attribute__ ((aligned (4))) = Helpers::hextoint(arguments.back().c_str());
                                   EMSESP::send_read_request(type_id, device_id, offset);
                               } else {
                                   EMSESP::send_read_request(type_id, device_id);
@@ -297,7 +297,7 @@ void EMSESPShell::add_console_commands() {
                           flash_string_vector{F_(set), F_(timeout)},
                           flash_string_vector{F_(n_mandatory)},
                           [](Shell & shell, const std::vector<std::string> & arguments) {
-                              uint16_t value = Helpers::atoint(arguments.front().c_str());
+                              uint16_t value __attribute__ ((aligned (4))) = Helpers::atoint(arguments.front().c_str());
                               telnet_.initial_idle_timeout(value * 60);
                               shell.printfln(F("Telnet timeout is %d minutes"), value);
                           });
@@ -308,7 +308,7 @@ void EMSESPShell::add_console_commands() {
                           flash_string_vector{F_(watch)},
                           flash_string_vector{F_(watch_format_optional), F_(watchid_optional)},
                           [](Shell & shell, const std::vector<std::string> & arguments) {
-                              uint16_t watch_id = WATCH_ID_NONE;
+                              uint16_t watch_id __attribute__ ((aligned (4))) = WATCH_ID_NONE;
 
                               if (!arguments.empty()) {
                                   // get raw/pretty

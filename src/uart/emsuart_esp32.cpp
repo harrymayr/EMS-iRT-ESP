@@ -198,7 +198,7 @@ uint16_t EMSuart::transmit(const uint8_t * buf, const uint8_t len) {
     for (uint8_t i = 0; i < len; i++) {
         volatile uint8_t _usrxc = EMS_UART.status.rxfifo_cnt;
         EMS_UART.fifo.rw_byte   = buf[i]; // send each Tx byte
-        uint16_t timeoutcnt     = EMSUART_TX_TIMEOUT;
+        uint16_t timeoutcnt     __attribute__ ((aligned (4))) = EMSUART_TX_TIMEOUT;
         while ((EMS_UART.status.rxfifo_cnt == _usrxc) && (--timeoutcnt > 0)) {
             delayMicroseconds(EMSUART_TX_BUSY_WAIT); // burn CPU cycles...
         }

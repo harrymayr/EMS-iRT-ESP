@@ -152,11 +152,11 @@ class Thermostat : public EMSdevice {
     }
 
     // each thermostat has a list of heating controller type IDs for reading and writing
-    std::vector<uint16_t> monitor_typeids;
-    std::vector<uint16_t> set_typeids;
-    std::vector<uint16_t> timer_typeids;
-    std::vector<uint16_t> summer_typeids;
-    std::vector<uint16_t> curve_typeids;
+    std::vector<uint16_t> monitor_typeids __attribute__ ((aligned (4)));
+    std::vector<uint16_t> set_typeids __attribute__ ((aligned (4)));
+    std::vector<uint16_t> timer_typeids __attribute__ ((aligned (4)));
+    std::vector<uint16_t> summer_typeids __attribute__ ((aligned (4)));
+    std::vector<uint16_t> curve_typeids __attribute__ ((aligned (4)));
 
     std::string datetime_;  // date and time stamp
     std::string errorCode_; // code from 0xA2 as string i.e. "A22(816)"
@@ -173,12 +173,12 @@ class Thermostat : public EMSdevice {
     uint8_t ibaBuildingType_      = EMS_VALUE_UINT_NOTSET; // building type: 0 = light, 1 = medium, 2 = heavy
     uint8_t ibaClockOffset_       = EMS_VALUE_UINT_NOTSET; // offset (in sec) to clock, 0xff = -1 s, 0x02 = 2 s
 
-    uint16_t errorNumber_        = EMS_VALUE_USHORT_NOTSET;
+    uint16_t errorNumber_        __attribute__ ((aligned (4))) = EMS_VALUE_USHORT_NOTSET;
+    uint16_t tempsensor1_        __attribute__ ((aligned (4))) = EMS_VALUE_USHORT_NOTSET;
+    uint16_t tempsensor2_        __attribute__ ((aligned (4))) = EMS_VALUE_USHORT_NOTSET;
+    int16_t  dampedoutdoortemp2_ __attribute__ ((aligned (4))) = EMS_VALUE_SHORT_NOTSET;
     char     lastCode_[30]       = {'\0'};
     int8_t   dampedoutdoortemp_  = EMS_VALUE_INT_NOTSET;
-    uint16_t tempsensor1_        = EMS_VALUE_USHORT_NOTSET;
-    uint16_t tempsensor2_        = EMS_VALUE_USHORT_NOTSET;
-    int16_t  dampedoutdoortemp2_ = EMS_VALUE_SHORT_NOTSET;
     uint8_t  floordrystatus_     = EMS_VALUE_UINT_NOTSET;
     uint8_t  floordrytemp_       = EMS_VALUE_UINT_NOTSET;
 
@@ -193,8 +193,8 @@ class Thermostat : public EMSdevice {
     std::vector<std::shared_ptr<HeatingCircuit>> heating_circuits_; // each thermostat can have multiple heating circuits
 
     // Generic Types
-    static constexpr uint16_t EMS_TYPE_RCTime        = 0x06; // time
-    static constexpr uint16_t EMS_TYPE_RCOutdoorTemp = 0xA3; // is an automatic thermostat broadcast, outdoor external temp
+    static constexpr uint16_t EMS_TYPE_RCTime         __attribute__ ((aligned (4))) = 0x06; // time
+    static constexpr uint16_t EMS_TYPE_RCOutdoorTemp  __attribute__ ((aligned (4))) = 0xA3; // is an automatic thermostat broadcast, outdoor external temp
 
     // Type offsets
     static constexpr uint8_t EMS_OFFSET_RC10StatusMessage_setpoint = 1; // setpoint temp

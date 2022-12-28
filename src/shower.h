@@ -72,9 +72,9 @@ class Shower {
     bool     shower_alert_;                       // true if we want the alert of cold water
     bool     mqtt_discovery_config_send_ = false; // for HA MQTT Discovery
     bool     shower_on_;
-    uint32_t timer_start_;     // ms
-    uint32_t timer_pause_;     // ms
-    uint32_t duration_;        // ms
+    uint32_t timer_start_ __attribute__ ((aligned (4)));     // ms
+    uint32_t timer_pause_ __attribute__ ((aligned (4)));     // ms
+    uint32_t duration_ __attribute__ ((aligned (4)));        // ms
     bool     doing_cold_shot_; // true if we've just sent a jolt of cold water
 };
 

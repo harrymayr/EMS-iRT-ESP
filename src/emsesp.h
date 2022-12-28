@@ -228,8 +228,8 @@ class EMSESP {
 
     static bool command_info(uint8_t device_type, JsonObject & json, const int8_t id);
 
-    static constexpr uint32_t EMS_FETCH_FREQUENCY = 60000; // check every minute
-    static uint32_t           last_fetch_;
+    static constexpr uint32_t EMS_FETCH_FREQUENCY __attribute__ ((aligned (4))) = 60000; // check every minute
+    static uint32_t           last_fetch_  __attribute__ ((aligned (4)));
 
     struct Device_record {
         uint8_t                     product_id;
@@ -241,17 +241,17 @@ class EMSESP {
     static std::vector<Device_record> device_library_;
 
     static uint8_t  actual_master_thermostat_;
-    static uint16_t watch_id_;
+    static uint16_t watch_id_ __attribute__ ((aligned (4)));
+    static uint16_t read_id_ __attribute__ ((aligned (4)));
+    static uint16_t publish_id_ __attribute__ ((aligned (4)));
+    static uint64_t tx_delay_ __attribute__ ((aligned (4)));
     static uint8_t  watch_;
-    static uint16_t read_id_;
     static bool     read_next_;
-    static uint16_t publish_id_;
     static bool     tap_water_active_;
     static uint8_t  cur_burn_pow_;
     static uint8_t  publish_all_idx_;
     static uint8_t  unique_id_count_;
     static bool     trace_raw_;
-    static uint64_t tx_delay_;
     static bool     force_scan_;
 };
 

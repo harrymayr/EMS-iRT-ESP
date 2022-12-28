@@ -46,11 +46,11 @@ class DallasSensor {
         uint64_t    id() const;
         std::string to_string() const;
 
-        int16_t temperature_c = EMS_VALUE_SHORT_NOTSET;
+        int16_t temperature_c __attribute__ ((aligned (4))) = EMS_VALUE_SHORT_NOTSET;
         bool    read          = false;
 
       private:
-        const uint64_t id_;
+        const uint64_t id_ __attribute__ ((aligned (4)));
     };
 
     DallasSensor()  = default;
@@ -87,10 +87,10 @@ class DallasSensor {
     static constexpr uint8_t TYPE_DS1822  = 0x22;
     static constexpr uint8_t TYPE_DS1825  = 0x3B; // also DS1826
 
-    static constexpr uint32_t READ_INTERVAL_MS = 5000; // 5 seconds
-    static constexpr uint32_t CONVERSION_MS    = 1000; // 1 seconds
-    static constexpr uint32_t READ_TIMEOUT_MS  = 2000; // 2 seconds
-    static constexpr uint32_t SCAN_TIMEOUT_MS  = 3000; // 3 seconds
+    static constexpr uint32_t READ_INTERVAL_MS __attribute__ ((aligned (4))) = 5000; // 5 seconds
+    static constexpr uint32_t CONVERSION_MS    __attribute__ ((aligned (4))) = 1000; // 1 seconds
+    static constexpr uint32_t READ_TIMEOUT_MS  __attribute__ ((aligned (4))) = 2000; // 2 seconds
+    static constexpr uint32_t SCAN_TIMEOUT_MS  __attribute__ ((aligned (4))) = 3000; // 3 seconds
 
     static constexpr uint8_t CMD_CONVERT_TEMP    = 0x44;
     static constexpr uint8_t CMD_READ_SCRATCHPAD = 0xBE;
@@ -111,8 +111,8 @@ class DallasSensor {
     bool command_info(const char * value, const int8_t id, JsonObject & json);
     bool export_values(JsonObject & doc);
 
-    uint32_t            last_activity_ = uuid::get_uptime();
-    uint32_t            last_publish_  = uuid::get_uptime();
+    uint32_t            last_activity_ __attribute__ ((aligned (4))) = uuid::get_uptime();
+    uint32_t            last_publish_  __attribute__ ((aligned (4))) = uuid::get_uptime();
     State               state_         = State::IDLE;
     std::vector<Sensor> sensors_;
 
@@ -124,7 +124,7 @@ class DallasSensor {
     uint8_t  dallas_gpio_ = 0;
     bool     parasite_    = false;
     bool     changed_     = false;
-    uint32_t sensorfails_ = 0;
+    uint32_t sensorfails_ __attribute__ ((aligned (4))) = 0;
 };
 
 } // namespace emsesp

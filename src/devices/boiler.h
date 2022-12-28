@@ -42,7 +42,7 @@ class Boiler : public EMSdevice {
     virtual bool export_values(JsonObject & json, int8_t id = -1);
     virtual void device_info_web(JsonArray & root, uint8_t & part);
     virtual bool updated_values();
-    uint8_t  public_curBurnPow_        = EMS_VALUE_UINT_NOTSET;   // Burner current power %
+    //uint8_t  public_curBurnPow_        = EMS_VALUE_UINT_NOTSET;   // Burner current power %
 
   private:
     static uuid::log::Logger logger_;
@@ -77,6 +77,7 @@ class Boiler : public EMSdevice {
 
     // UBAParameterWW
     uint8_t wWActivated_        = EMS_VALUE_BOOL_NOTSET; // Warm Water activated
+    uint8_t wWActivated_raw     = EMS_VALUE_BOOL_NOTSET; // Warm Water activated
     uint8_t wWSelTemp_          = EMS_VALUE_UINT_NOTSET; // Warm Water selected temperature
     uint8_t wWCircPump_         = EMS_VALUE_BOOL_NOTSET; // Warm Water circulation pump available
     uint8_t wWCircPumpMode_     = EMS_VALUE_UINT_NOTSET; // Warm Water circulation pump mode
@@ -91,9 +92,11 @@ class Boiler : public EMSdevice {
     // UBAMonitorFast - 0x18 on EMS1
     uint8_t  selFlowTemp_       = EMS_VALUE_UINT_NOTSET;   // Selected flow temperature
     uint16_t curFlowTemp_       = EMS_VALUE_USHORT_NOTSET; // Current flow temperature
+    uint8_t  curFlowTemp_raw    = EMS_VALUE_UINT_NOTSET;   // Current flow temperature
     uint16_t wWStorageTemp1_    = EMS_VALUE_USHORT_NOTSET; // warm water storage temp 1
     uint16_t wWStorageTemp2_    = EMS_VALUE_USHORT_NOTSET; // warm water storage temp 2
     uint16_t retTemp_           = EMS_VALUE_USHORT_NOTSET; // Return temperature
+    uint8_t  retTemp_raw        = EMS_VALUE_UINT_NOTSET;   // Return temperature
     uint8_t  burnGas_           = EMS_VALUE_BOOL_NOTSET;   // Gas on/off
     uint8_t  fanWork_           = EMS_VALUE_BOOL_NOTSET;   // Fan on/off
     uint8_t  ignWork_           = EMS_VALUE_BOOL_NOTSET;   // Ignition on/off
@@ -102,27 +105,32 @@ class Boiler : public EMSdevice {
     uint8_t  wWCirc_            = EMS_VALUE_BOOL_NOTSET;   // Circulation on/off
     uint8_t  selBurnPow_        = EMS_VALUE_UINT_NOTSET;   // Burner max power %
     uint8_t  curBurnPow_        = EMS_VALUE_UINT_NOTSET;   // Burner current power %
+    uint8_t  curBurnPow_raw     = EMS_VALUE_UINT_NOTSET;   // Burner current power %
     uint16_t flameCurr_         = EMS_VALUE_USHORT_NOTSET; // Flame current in micro amps
     uint8_t  sysPress_          = EMS_VALUE_UINT_NOTSET;   // System pressure
     char     serviceCode_[4]    = {'\0'};                  // 3 character status/service code
     uint16_t serviceCodeNumber_ = EMS_VALUE_USHORT_NOTSET; // error/service code
+    uint8_t  serviceCodeNumber_raw = EMS_VALUE_UINT_NOTSET; // error/service code
     uint8_t  boilerState_       = EMS_VALUE_UINT_NOTSET;   // Boiler state flag
     char     lastCode_[30]      = {'\0'};
     uint32_t lastCodeDate_      = 0;
 
     // UBAMonitorSlow - 0x19 on EMS1
     int16_t  outdoorTemp_    = EMS_VALUE_SHORT_NOTSET;  // Outside temperature
+    uint8_t  outdoorTemp_raw = EMS_VALUE_UINT_NOTSET;   // Outside temperature
     uint16_t boilTemp_       = EMS_VALUE_USHORT_NOTSET; // Boiler temperature
     uint16_t exhaustTemp_    = EMS_VALUE_USHORT_NOTSET; // Exhaust temperature
     uint8_t  heatingPumpMod_ = EMS_VALUE_UINT_NOTSET;   // Heating pump modulation %
     uint32_t burnStarts_     = EMS_VALUE_ULONG_NOTSET;  // # burner restarts
     uint32_t burnWorkMin_    = EMS_VALUE_ULONG_NOTSET;  // Total burner operating time
+    uint8_t  burnWorkMin_raw = EMS_VALUE_UINT_NOTSET;   // Total burner operating time
     uint32_t heatWorkMin_    = EMS_VALUE_ULONG_NOTSET;  // Total heat operating time
     uint16_t switchTemp_     = EMS_VALUE_USHORT_NOTSET; // Switch temperature
 
     // UBAMonitorWW
     uint8_t  wWSetTemp_      = EMS_VALUE_UINT_NOTSET;   // Warm Water set temperature
     uint16_t wWCurTemp_      = EMS_VALUE_USHORT_NOTSET; // Warm Water current temperature
+    uint8_t  wWCurTemp_raw   = EMS_VALUE_UINT_NOTSET;   // Warm Water current temperature
     uint16_t wWCurTemp2_     = EMS_VALUE_USHORT_NOTSET; // Warm Water current temperature storage
     uint32_t wWStarts_       = EMS_VALUE_ULONG_NOTSET;  // Warm Water # starts
     uint32_t wWWorkM_        = EMS_VALUE_ULONG_NOTSET;  // Warm Water # minutes
@@ -142,10 +150,12 @@ class Boiler : public EMSdevice {
     // UBAParameters
     uint8_t heatingActivated_ = EMS_VALUE_BOOL_NOTSET; // Heating activated on the boiler
     uint8_t heatingTemp_      = EMS_VALUE_UINT_NOTSET; // Heating temperature setting on the boiler
+    uint8_t heatingTemp_raw   = EMS_VALUE_UINT_NOTSET; // Heating temperature setting on the boiler
     uint8_t pumpModMax_       = EMS_VALUE_UINT_NOTSET; // Boiler circuit pump modulation max. power %
     uint8_t pumpModMin_       = EMS_VALUE_UINT_NOTSET; // Boiler circuit pump modulation min. power
     uint8_t burnMinPower_     = EMS_VALUE_UINT_NOTSET;
     uint8_t burnMaxPower_     = EMS_VALUE_UINT_NOTSET;
+    uint8_t burnMaxPower_raw  = EMS_VALUE_UINT_NOTSET;
     int8_t  boilHystOff_      = EMS_VALUE_INT_NOTSET;
     int8_t  boilHystOn_       = EMS_VALUE_INT_NOTSET;
     uint8_t burnMinPeriod_    = EMS_VALUE_UINT_NOTSET;
@@ -153,7 +163,9 @@ class Boiler : public EMSdevice {
 
     // UBASetPoint
     uint8_t setFlowTemp_    = EMS_VALUE_UINT_NOTSET; // boiler setpoint temp
+    uint8_t setFlowTemp_raw = EMS_VALUE_UINT_NOTSET; // boiler setpoint temp
     uint8_t setBurnPow_     = EMS_VALUE_UINT_NOTSET; // max output power in %
+    uint8_t setBurnPow_raw  = EMS_VALUE_UINT_NOTSET; // max output power in %
     uint8_t wWSetPumpPower_ = EMS_VALUE_UINT_NOTSET; // ww pump speed/power?
 
     // other internal calculated params

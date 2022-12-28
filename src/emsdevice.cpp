@@ -305,7 +305,7 @@ std::string EMSdevice::telegram_type_name(std::shared_ptr<const Telegram> telegr
     // see if it's one of the common ones, like Version
     if (telegram->type_id == EMS_TYPE_VERSION) {
         return read_flash_string(F("Version"));
-    } else if (telegram->type_id == EMS_TYPE_UBADevices) {
+    } else if ((telegram->type_id == EMS_TYPE_UBADevices) && (EMSbus::tx_mode() <= EMS_TXMODE_HW)){
         return read_flash_string(F("UBADevices"));
     }
 

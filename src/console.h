@@ -120,8 +120,8 @@ class EMSESPStreamConsole : public uuid::console::StreamConsole, public EMSESPSh
 
     std::string name_;
     size_t      pty_;
-    IPAddress   addr_;
-    uint16_t    port_;
+    IPAddress   addr_ __attribute__ ((aligned (4)));
+    uint16_t    port_ __attribute__ ((aligned (4)));
 };
 
 class Console {

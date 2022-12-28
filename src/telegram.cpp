@@ -36,7 +36,7 @@ const uint8_t ems_crc_table[] = {0x00, 0x02, 0x04, 0x06, 0x08, 0x0A, 0x0C, 0x0E,
                                  0xA1, 0xA3, 0xA5, 0xA7, 0xD9, 0xDB, 0xDD, 0xDF, 0xD1, 0xD3, 0xD5, 0xD7, 0xC9, 0xCB, 0xCD, 0xCF, 0xC1, 0xC3, 0xC5, 0xC7,
                                  0xF9, 0xFB, 0xFD, 0xFF, 0xF1, 0xF3, 0xF5, 0xF7, 0xE9, 0xEB, 0xED, 0xEF, 0xE1, 0xE3, 0xE5, 0xE7};
 
-uint32_t EMSbus::last_bus_activity_ = 0;              // timestamp of last time a valid Rx came in
+uint32_t EMSbus::last_bus_activity_ __attribute__ ((aligned (4))) = 0;              // timestamp of last time a valid Rx came in
 bool     EMSbus::bus_connected_     = false;          // start assuming the bus hasn't been connected
 uint8_t  EMSbus::ems_mask_          = EMS_MASK_UNSET; // unset so its triggered when booting, the its 0x00=buderus, 0x80=junker/ht3
 uint8_t  EMSbus::ems_bus_id_        = EMSESP_DEFAULT_EMS_BUS_ID;
@@ -60,9 +60,9 @@ uint8_t EMSbus::calculate_crc(const uint8_t * data, const uint8_t length) {
 /*
  Modified version of: https://stackoverflow.com/questions/776508/best-practices-for-circular-shift-rotate-operations-in-c
  */
-static inline uint8_t rotl8 (uint8_t n, unsigned int c)
+static inline uint8_t rotl8 (uint8_t n, uint8_t c)
 {
-  const unsigned int mask = (CHAR_BIT*sizeof(n) - 1);  // assumes width is a power of 2.
+  const uint8_t mask = (CHAR_BIT*sizeof(n) - 1);  // assumes width is a power of 2.
 
   // assert ( (c<=mask) &&"rotate by type width or more");
   c &= mask;
@@ -225,10 +225,10 @@ void RxService::add(uint8_t * data, uint8_t length) {
     uint8_t offset    = data[3];        // offset is always 4th byte
     uint8_t operation = (data[1] & 0x80) ? Telegram::Operation::RX_READ : Telegram::Operation::RX;
 
-    uint16_t  type_id;
+    uint16_t  type_id  __attribute__ ((aligned (4)));
     uint8_t * message_data;   // where the message block starts
     uint8_t   message_length; // length of the message block, excluding CRC
-    uint8_t i, j, ret;
+    uint8_t i, j, ret,crc;
 	uint8_t irt_buffer[IRT_MAX_TELEGRAM_LENGTH];
 
 
@@ -256,7 +256,7 @@ void RxService::add(uint8_t * data, uint8_t length) {
         }
         // if we're watching and "raw" print out actual telegram as bytes to the console
         if (EMSESP::watch() == EMSESP::Watch::WATCH_RAW) {
-            uint16_t trace_watch_id = EMSESP::watch_id();
+            uint16_t trace_watch_id __attribute__ ((aligned (4))) = EMSESP::watch_id();
             if ((trace_watch_id == WATCH_ID_NONE) || (type_id == trace_watch_id)
                 || ((trace_watch_id < 0x80) && ((src == trace_watch_id) || (dest == trace_watch_id)))) {
                 LOG_NOTICE(F("Rx: %s"), Helpers::data_to_hex(data, length).c_str());
@@ -309,9 +309,8 @@ void RxService::add(uint8_t * data, uint8_t length) {
                 i += 2;
             } else {
                 // Drop buffer on crc error
-                uint8_t crc = 0x55;
                 telegram_error_count_++;
-                LOG_ERROR(F("Rx: %s (CRC %02X != %02X)"), Helpers::data_to_hex(data, length).c_str(), data[length - 1], crc);
+                LOG_ERROR(F("Rx: %s (data %02X != %02X or %02X)"), Helpers::data_to_hex(data, length).c_str(), data[i], data[i+1],(0xFF - data[i+1]));
                 i++;
                 break;
     //			return;
@@ -337,7 +336,7 @@ void RxService::add(uint8_t * data, uint8_t length) {
             }
             i = i + message_length;
 //            LOG_DEBUG(F("Rx: %s "), Helpers::data_to_hex(message_data, message_length).c_str());
-            uint8_t crc = calculate_irt_crc(message_data, message_length);
+            crc = calculate_irt_crc(message_data, message_length);
             if (message_data[3] != crc) {
                 // Drop buffer on crc error
                 telegram_error_count_++;
@@ -353,7 +352,7 @@ void RxService::add(uint8_t * data, uint8_t length) {
 
             // if we're watching and "raw" print out actual telegram as bytes to the console
             if (EMSESP::watch() == EMSESP::Watch::WATCH_RAW) {
-                uint16_t trace_watch_id = EMSESP::watch_id();
+                uint16_t trace_watch_id __attribute__ ((aligned (4))) = EMSESP::watch_id();
                 if ((trace_watch_id == WATCH_ID_NONE) || (type_id == trace_watch_id)
                     || ((trace_watch_id < 0x80) && ((src == trace_watch_id) || (dest == trace_watch_id)))) {
                     LOG_NOTICE(F("Rx: %s"), Helpers::data_to_hex(data, length).c_str());
@@ -531,7 +530,7 @@ void TxService::send_telegram(const QueuedTxTelegram & tx_telegram) {
 
     set_post_send_query(tx_telegram.validateid_);
     // send the telegram to the UART Tx
-    uint16_t status = EMSuart::transmit(telegram_raw, length);
+    uint16_t status __attribute__ ((aligned (4))) = EMSuart::transmit(telegram_raw, length);
 
     if (status == EMS_TX_STATUS_ERR) {
         LOG_ERROR(F("Failed to transmit Tx via UART."));
@@ -610,8 +609,8 @@ void TxService::add(uint8_t operation, const uint8_t * data, const uint8_t lengt
     uint8_t dest   = data[1];
     uint8_t offset = data[3];
 
-    uint16_t        validate_id = validateid;
-    uint16_t        type_id;
+    uint16_t        validate_id __attribute__ ((aligned (4))) = validateid;
+    uint16_t        type_id __attribute__ ((aligned (4)));
     const uint8_t * message_data;   // where the message block starts
     uint8_t         message_length; // length of the message block, excluding CRC
 
@@ -768,7 +767,7 @@ bool TxService::is_last_tx(const uint8_t src, const uint8_t dest) const {
 // sends a type_id read request to fetch values after a successful Tx write operation
 // unless the post_send_query has a type_id of 0
 uint16_t TxService::post_send_query() {
-    uint16_t post_typeid = this->get_post_send_query();
+    uint16_t post_typeid __attribute__ ((aligned (4))) = this->get_post_send_query();
 
     if (post_typeid) {
         uint8_t dest = (this->telegram_last_->dest & 0x7F);

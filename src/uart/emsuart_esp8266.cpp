@@ -41,7 +41,7 @@ bool         drop_next_rx_ = true;
 // Main interrupt handler
 // Important: must not use ICACHE_FLASH_ATTR
 //
-void ICACHE_RAM_ATTR EMSuart::emsuart_rx_intr_handler(void * para) {
+void IRAM_ATTR EMSuart::emsuart_rx_intr_handler(void * para) {
 
     if (USIR(EMSUART_UART) & (1 << UIBD)) {  // BREAK detection = End of EMS data block
         USC0(EMSUART_UART) &= ~(1 << UCBRK); // reset tx-brk
@@ -240,7 +240,7 @@ uint16_t ICACHE_FLASH_ATTR EMSuart::transmit(uint8_t * buf, uint8_t len) {
     // send the bytes along the serial line
     for (uint8_t i = 0; i < len; i++) {
         volatile uint8_t _usrxc     = (USS(EMSUART_UART) >> USRXC) & 0xFF;
-        uint16_t         timeoutcnt = EMSUART_TX_TIMEOUT;
+        uint16_t         timeoutcnt  __attribute__ ((aligned (4))) = EMSUART_TX_TIMEOUT;
         USF(EMSUART_UART)           = buf[i]; // send each Tx byte
         // wait for echo
         while ((((USS(EMSUART_UART) >> USRXC) & 0xFF) == _usrxc) && (--timeoutcnt > 0)) {

@@ -99,7 +99,7 @@ Boiler::Boiler(uint8_t device_type, int8_t device_id, uint8_t product_id, const 
         register_telegram_type(0xA8, F("IRTGetWwTemp"), false, [&](std::shared_ptr<const Telegram> t) { process_IRTGetWwTemp(t); });
         register_telegram_type(0xAA, F("IRTGetBurnerRuntime"), false, [&](std::shared_ptr<const Telegram> t) { process_IRTGetBurnerRuntime(t); });
         register_telegram_type(0xAB, F("IRTGetBurnerStarts"), false, [&](std::shared_ptr<const Telegram> t) { process_IRTGetBurnerStarts(t); });
-        register_telegram_type(0xC9, F("IRTGetMaxBurnerPowerSetting"), false, [&](std::shared_ptr<const Telegram> t) { process_IRTGetMaxBurnerPowerSetting(t); });
+        register_telegram_type(0xC9, F("IRTHandlerUnknownFunktion"), false, [&](std::shared_ptr<const Telegram> t) { process_IRTHandlerUnknownFunktion(t); });
         register_telegram_type(0xDE, F("IRTGetMaxBurnerPowerSetting"), false, [&](std::shared_ptr<const Telegram> t) { process_IRTGetMaxBurnerPowerSetting(t); });
         register_telegram_type(0xE8, F("IRTHandlerUnknownFunktion"), false, [&](std::shared_ptr<const Telegram> t) { process_IRTHandlerUnknownFunktion(t); });
         register_telegram_type(0xED, F("IRTHandlerUnknownFunktion"), false, [&](std::shared_ptr<const Telegram> t) { process_IRTHandlerUnknownFunktion(t); });
@@ -165,6 +165,8 @@ void Boiler::register_mqtt_ha_config() {
         dev["sw"]      = EMSESP_APP_VERSION;
         dev["mf"]      = brand_to_string();
         dev["mdl"]     = name();
+        snprintf_P(temp, sizeof(temp), PSTR("%s"), Mqtt::base().c_str());
+        dev["via_device"] = temp;
         JsonArray ids  = dev.createNestedArray("ids");
         snprintf_P(temp, sizeof(temp), PSTR("%s-boiler"), Mqtt::base().c_str());
         ids.add(temp);
@@ -364,7 +366,7 @@ void Boiler::register_mqtt_ha_config_ww() {
         if (Helpers::hasValue(wWActive_)) {
             Mqtt::register_mqtt_ha_sensor(nullptr, F_(mqtt_suffix_ww), F_(wWActive), device_type(), "wWActive", nullptr, nullptr);
         }
-        Mqtt::register_mqtt_ha_sensor(nullptr, F_(mqtt_suffix_info), F_(gasReading), device_type(), "gasReading", nullptr, nullptr);
+        Mqtt::register_mqtt_ha_sensor(nullptr, F_(mqtt_suffix_ww), F_(gasReading), device_type(), "gasReading", nullptr, nullptr);
     }
     else if (mqtt_ha_config_ww_ == 1) {
         // values should be sent if hasValues checks to false, but I see MQTT messages for non iRT sensors, so avoid sending it by tx-Mode
@@ -676,7 +678,7 @@ bool Boiler::export_values_ww(JsonObject & json, const bool textformat) {
         json["wWMaxPower"] = wWMaxPower_;
     }
 
-    json["gasReading"] = (float)(emsesp::System::gasReading_/emsesp::System::convFactor_/4);
+    json["gasReading"] = (float)emsesp::System::gasReading_/emsesp::System::convFactor_/4.0;
 
     // Warm Water active time
     Helpers::json_time(json, "wWWorkM", wWWorkM_, textformat);
@@ -1140,9 +1142,8 @@ uint8_t irt_convert_real_temp_to_raw(uint8_t real_in) {
 
 void Boiler::process_IRTSetFlowTemp(std::shared_ptr<const Telegram> telegram)  // 0x01
 {
-	uint8_t temp;
-    changed_ |= telegram->read_value(temp, 1);	
-    setFlowTemp_ = irt_convert_real_temp_to_raw(temp);
+    changed_ |= telegram->read_value(setFlowTemp_raw, 1);	
+    setFlowTemp_ = irt_convert_raw_temp_to_real(setFlowTemp_raw);
 }
 void Boiler::process_IRTSetWeatherControl(std::shared_ptr<const Telegram> telegram)  // 0x04
 {}
@@ -1152,9 +1153,8 @@ void Boiler::process_IRTSetWwActivated(std::shared_ptr<const Telegram> telegram)
 	/* 05 00 E2 A6 - warm water off*/
 	/* 05 04 E2 A6 - warm water on*/
 
-	uint8_t temp;
-    changed_ |= telegram->read_value(temp, 1);	
-	if (temp & 0x04) {
+    changed_ |= telegram->read_value(wWActivated_raw, 1);	
+	if (wWActivated_raw & 0x04) {
 		// warm water on
 		wWActivated_ = 0xFF;
 	} else {
@@ -1165,9 +1165,8 @@ void Boiler::process_IRTSetWwActivated(std::shared_ptr<const Telegram> telegram)
 
 // iRTSetBurnerPower 0x07
 void Boiler::process_IRTSetBurnerPower(std::shared_ptr<const Telegram> telegram) {
-	uint8_t temp;
-    changed_ |= telegram->read_value(temp, 1);	
-    setBurnPow_ = (uint8_t)((uint32_t)(temp * 100) / 255);     // max json power in %
+    changed_ |= telegram->read_value(setBurnPow_raw, 1);	
+    setBurnPow_ = (uint8_t)((uint32_t)(setBurnPow_raw * 100) / 255);     // max json power in %
 }
 
 void Boiler::process_IRTHandlerUnknownFunktion(std::shared_ptr<const Telegram> telegram)  // unknown funktions
@@ -1175,7 +1174,7 @@ void Boiler::process_IRTHandlerUnknownFunktion(std::shared_ptr<const Telegram> t
    
 void Boiler::process_IRTGetMaxWarmWater(std::shared_ptr<const Telegram> telegram)  // 0x81
 {
-    changed_ |= telegram->read_value(heatingTemp_, 4);
+    changed_ |= telegram->read_value(wWSelTemp_, 4);
 }
 void Boiler::process_IRTGetBoilerFlags(std::shared_ptr<const Telegram> telegram)  // 0x82
 {
@@ -1207,12 +1206,11 @@ void Boiler::process_IRTGetActBurnerPower(std::shared_ptr<const Telegram> telegr
 	 * 83 C3 79 E1 ss
 	 * ss - 0xA0 - if burner off
 	 * ss - 0x00 - 0xFF burner power: ss * 0.25 + 30 */
-	uint8_t temp;
-    changed_ |= telegram->read_value(temp, 4);
-    if ((temp==0xA0) && (heatingActive_==0))
+    changed_ |= telegram->read_value(curBurnPow_raw, 4);
+    if ((curBurnPow_raw==0xA0) && (heatingActive_==0))
         curBurnPow_ = 0;
     else
-        curBurnPow_ = (temp / 4) + 30;
+        curBurnPow_ = (curBurnPow_raw / 4) + 30;
     EMSESP::cur_burn_pow(curBurnPow_); // let EMS-ESP know, used in the System
 
 }
@@ -1230,20 +1228,18 @@ void Boiler::process_IRTGetOutdoorTemp(std::shared_ptr<const Telegram> telegram)
 	 * tt 0x9A - 15.38kOhm resistor
 	 * tt 0x67 - 6.93kOhm resistor
  */
-	uint8_t temp;
-    changed_ |= telegram->read_value(temp, 4);	
+    changed_ |= telegram->read_value(outdoorTemp_raw, 4);	
     // used a fit on data -> y = -0.3639x + 71.798 (see wiki)
     // this function fits also better to the external temp. which will be delivered from the EasyControl adapter
-    outdoorTemp_ = (int16_t)((int32_t)(197450-temp*1000)/275);
+    outdoorTemp_ = (int32_t)(197450-outdoorTemp_raw*1000)/275;
  }
 
 
 void Boiler::process_IRTGetMaxFlowTemp(std::shared_ptr<const Telegram> telegram)  // 0x90
 {
-	uint8_t temp;
-    changed_ |= telegram->read_value(temp, 4);	
+    changed_ |= telegram->read_value(heatingTemp_raw, 4);	
     // temp/4.25+35
-    heatingTemp_= (int8_t)((uint32_t)(temp*100+14875)/425);
+    heatingTemp_= ((uint32_t)heatingTemp_raw*100+14875)/425;
 }
 void Boiler::process_IRTGetPumpStatus(std::shared_ptr<const Telegram> telegram)  // 0x93
 {
@@ -1308,42 +1304,38 @@ void Boiler::process_IRTGetDisplayCode(std::shared_ptr<const Telegram> telegram)
 	 * bit 1 : display code 2
 	 * bit 0 : display code 2
 	 */
-	uint8_t temp;
-    changed_ |= telegram->read_value(temp, 4);	
+    changed_ |= telegram->read_value(serviceCodeNumber_raw, 4);	
 
-	serviceCode_[0] = irt_getDisplayCode1(temp);
-	serviceCode_[1] = irt_getDisplayCode2(temp);
+	serviceCode_[0] = irt_getDisplayCode1(serviceCodeNumber_raw);
+	serviceCode_[1] = irt_getDisplayCode2(serviceCodeNumber_raw);
 	serviceCode_[2] = '\0';
 
-	serviceCodeNumber_ = temp;
+	serviceCodeNumber_ = serviceCodeNumber_raw;
 }
+
 void Boiler::process_IRTGetFlowTemp(std::shared_ptr<const Telegram> telegram)  // 0xA4
 {
-	uint8_t temp;
-    changed_ |= telegram->read_value(temp, 4);	
-    curFlowTemp_ = irt_convert_raw_temp_to_real(temp)*10;
+    changed_ |= telegram->read_value(curFlowTemp_raw, 4);	
+    curFlowTemp_ = irt_convert_raw_temp_to_real(curFlowTemp_raw)*10;
 }
 void Boiler::process_IRTGetRetTemp(std::shared_ptr<const Telegram> telegram)  // 0xA6
 {
-	uint8_t temp;
-    changed_ |= telegram->read_value(temp, 4);	
-    retTemp_ = irt_convert_raw_temp_to_real(temp)*10;
+    changed_ |= telegram->read_value(retTemp_raw, 4);	
+    retTemp_ = irt_convert_raw_temp_to_real(retTemp_raw)*10;
 }
 void Boiler::process_IRTGetWwTemp(std::shared_ptr<const Telegram> telegram)  // 0xA8
 {
-	uint8_t temp;
-    changed_ |= telegram->read_value(temp, 4);	
-    if (temp < 100) 
-        wWCurTemp_ = irt_convert_raw_temp_to_real(temp)*10;
+    changed_ |= telegram->read_value(wWCurTemp_raw, 4);	
+    if (wWCurTemp_raw < 100) 
+        wWCurTemp_ = irt_convert_raw_temp_to_real(wWCurTemp_raw)*10;
     else
         wWCurTemp_ = EMS_VALUE_USHORT_NOTSET;
 }
 
 void Boiler::process_IRTGetBurnerRuntime(std::shared_ptr<const Telegram> telegram)  // 0xAA
 {
-	uint8_t temp;
-    changed_ |= telegram->read_value(temp, 4);	
-    burnWorkMin_ = 255 - temp;
+    changed_ |= telegram->read_value(burnWorkMin_raw, 4);	
+    burnWorkMin_ = 255 - burnWorkMin_raw;
 }
 void Boiler::process_IRTGetBurnerStarts(std::shared_ptr<const Telegram> telegram)  // 0xAB
 {
@@ -1351,9 +1343,8 @@ void Boiler::process_IRTGetBurnerStarts(std::shared_ptr<const Telegram> telegram
 }
 void Boiler::process_IRTGetMaxBurnerPowerSetting(std::shared_ptr<const Telegram> telegram)  // 0xDE
 {
-    uint8_t temp;
-    changed_ |= telegram->read_value(temp, 4);	
-    wWSelTemp_=(uint8_t)((temp*100)/255);
+    changed_ |= telegram->read_value(burnMaxPower_raw, 4);	
+    burnMaxPower_=(uint8_t)((burnMaxPower_raw*100)/255);
 }
 
 // EMS
@@ -1689,17 +1680,17 @@ void Boiler::process_UBAErrorMessage(std::shared_ptr<const Telegram> telegram) {
     // data: displaycode(2), errornumber(2), year, month, hour, day, minute, duration(2), src-addr
     if (telegram->message_data[4] & 0x80) { // valid date
         char     code[3];
-        uint16_t codeNo;
+        uint16_t __attribute__ ((aligned (4))) codeNo;
         code[0] = telegram->message_data[0];
         code[1] = telegram->message_data[1];
         code[2] = 0;
         telegram->read_value(codeNo, 2);
-        uint16_t year  = (telegram->message_data[4] & 0x7F) + 2000;
+        uint16_t year  __attribute__ ((aligned (4))) = (telegram->message_data[4] & 0x7F) + 2000;
         uint8_t  month = telegram->message_data[5];
         uint8_t  day   = telegram->message_data[7];
         uint8_t  hour  = telegram->message_data[6];
         uint8_t  min   = telegram->message_data[8];
-        uint32_t date  = (year - 2000) * 535680UL + month * 44640UL + day * 1440UL + hour * 60 + min;
+        uint32_t date __attribute__ ((aligned (4)))  = (year - 2000) * 535680UL + month * 44640UL + day * 1440UL + hour * 60 + min;
         // store only the newest code from telegrams 10 and 11
         if (date > lastCodeDate_) {
             snprintf_P(lastCode_, sizeof(lastCode_), PSTR("%s(%d) %02d.%02d.%d %02d:%02d"), code, codeNo, day, month, year, hour, min);

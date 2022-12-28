@@ -22,8 +22,8 @@ namespace emsesp {
 
 // init statics
 bool     Roomctrl::switch_off_[HCS] = {false, false, false, false};
-uint32_t Roomctrl::rc_time_[HCS]    = {0, 0, 0, 0};
-int16_t  Roomctrl::remotetemp_[HCS] = {EMS_VALUE_SHORT_NOTSET, EMS_VALUE_SHORT_NOTSET, EMS_VALUE_SHORT_NOTSET, EMS_VALUE_SHORT_NOTSET};
+uint32_t Roomctrl::rc_time_[HCS]    __attribute__ ((aligned (4))) = {0, 0, 0, 0};
+int16_t  Roomctrl::remotetemp_[HCS] __attribute__ ((aligned (4))) = {EMS_VALUE_SHORT_NOTSET, EMS_VALUE_SHORT_NOTSET, EMS_VALUE_SHORT_NOTSET, EMS_VALUE_SHORT_NOTSET};
 
 /**
  * set the temperature,

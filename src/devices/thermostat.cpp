@@ -1620,12 +1620,12 @@ void Thermostat::process_RCErrorMessage(std::shared_ptr<const Telegram> telegram
     // data: displaycode(2), errornumber(2), year, month, hour, day, minute, duration(2), src-addr
     if (telegram->message_data[4] & 0x80) { // valid date
         char     code[3];
-        uint16_t codeNo;
+        uint16_t codeNo __attribute__ ((aligned (4)));
         code[0] = telegram->message_data[0];
         code[1] = telegram->message_data[1];
         code[2] = 0;
         telegram->read_value(codeNo, 2);
-        uint16_t year  = (telegram->message_data[4] & 0x7F) + 2000;
+        uint16_t year  __attribute__ ((aligned (4))) = (telegram->message_data[4] & 0x7F) + 2000;
         uint8_t  month = telegram->message_data[5];
         uint8_t  day   = telegram->message_data[7];
         uint8_t  hour  = telegram->message_data[6];
@@ -2062,7 +2062,7 @@ bool Thermostat::set_mode_n(const uint8_t mode, const uint8_t hc_num) {
     }
 
     uint8_t  set_mode_value, offset;
-    uint16_t validate_typeid = 0;
+    uint16_t validate_typeid __attribute__ ((aligned (4))) = 0;
     uint8_t  hc_p            = hc->hc_num() - 1;
 
     // set the value to send via EMS depending on the mode type
@@ -2300,8 +2300,8 @@ bool Thermostat::set_temperature(const float temperature, const uint8_t mode, co
     uint8_t  model           = this->model();
     int8_t   offset          = -1; // we use -1 to check if there is a value
     uint8_t  factor          = 2;  // some temperatures only use 1
-    uint16_t validate_typeid = monitor_typeids[hc->hc_num() - 1];
-    uint16_t set_typeid      = set_typeids[hc->hc_num() - 1];
+    uint16_t validate_typeid __attribute__ ((aligned (4))) = monitor_typeids[hc->hc_num() - 1];
+    uint16_t set_typeid      __attribute__ ((aligned (4))) = set_typeids[hc->hc_num() - 1];
 
     if (model == EMS_DEVICE_FLAG_RC10) {
         offset = EMS_OFFSET_RC10Set_temp;

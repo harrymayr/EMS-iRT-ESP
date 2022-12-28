@@ -302,9 +302,9 @@ void Solar::process_SM100SolarCircuitConfig(std::shared_ptr<const Telegram> tele
  * e.g. B0 0B F9 00 00 02 5A 00 00 6E
  */
 void Solar::process_SM100ParamCfg(std::shared_ptr<const Telegram> telegram) {
-    uint16_t t_id;
+    uint16_t t_id __attribute__ ((aligned (4)));
+    int32_t  min  __attribute__ ((aligned (4))), def, max, cur;
     uint8_t  of;
-    int32_t  min, def, max, cur;
     telegram->read_value(t_id, 1);
     telegram->read_value(of, 3);
     telegram->read_value(min, 5);
@@ -443,7 +443,7 @@ void Solar::process_SM100Time(std::shared_ptr<const Telegram> telegram) {
 void Solar::process_ISM1StatusMessage(std::shared_ptr<const Telegram> telegram) {
     changed_ |= telegram->read_value(collectorTemp_, 4);  // is *10 - TS1: Temperature sensor for collector array 1
     changed_ |= telegram->read_value(tankBottomTemp_, 6); // is *10 - TS2: Temperature sensor 1st cylinder, bottom
-    uint16_t Wh = 0xFFFF;
+    uint16_t Wh __attribute__ ((aligned (4))) = 0xFFFF;
     changed_ |= telegram->read_value(Wh, 2); // Solar Energy produced in last hour only ushort, is not * 10
 
     if (Wh != 0xFFFF) {
@@ -465,7 +465,7 @@ void Solar::process_ISM1Set(std::shared_ptr<const Telegram> telegram) {
 
 // set temperature for maximum tankBottomTemp
 bool Solar::set_SM100TankBottomMaxTemp(const char * value, const int8_t id) {
-    int temperature;
+    int temperature __attribute__ ((aligned (4)));
     if (!Helpers::value2number(value, temperature)) {
         return false;
     }

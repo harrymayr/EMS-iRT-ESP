@@ -83,7 +83,7 @@ char * Helpers::itoa(char * result, int32_t value, const uint8_t base) {
     }
 
     char *  ptr = result, *ptr1 = result;
-    int16_t tmp_value;
+    int16_t tmp_value __attribute__ ((aligned (4)));
 
     do {
         tmp_value = value;
@@ -234,10 +234,10 @@ char * Helpers::render_value(char * result, const float value, const uint8_t for
         return nullptr;
     }
 
-    uint32_t p[] = {0, 10, 100, 1000, 10000, 100000, 1000000, 10000000, 100000000};
+    uint32_t p[] __attribute__ ((aligned (4))) = {0, 10, 100, 1000, 10000, 100000, 1000000, 10000000, 100000000};
 
     char *  ret   = result;
-    int32_t whole = (int32_t)value;
+    int32_t whole __attribute__ ((aligned (4))) = (int32_t)value;
 
     itoa(result, whole, 10);
 
@@ -246,7 +246,7 @@ char * Helpers::render_value(char * result, const float value, const uint8_t for
     }
 
     *result++       = '.';
-    int32_t decimal = abs((int32_t)((value - whole) * p[format]));
+    int32_t decimal __attribute__ ((aligned (4))) = abs((int32_t)((value - whole) * p[format]));
     itoa(result, decimal, 10);
 
     return ret;
@@ -265,7 +265,7 @@ char * Helpers::render_value(char * result, const int16_t value, const uint8_t f
         return result;
     }
 
-    int16_t new_value = value;
+    int16_t new_value __attribute__ ((aligned (4))) = value;
     result[0]         = '\0';
 
     // check for negative values
@@ -371,7 +371,7 @@ std::string Helpers::data_to_hex(const uint8_t * data, const uint8_t length) {
 // takes a hex string and convert it to an unsigned 32bit number (max 8 hex digits)
 // works with only positive numbers
 uint32_t Helpers::hextoint(const char * hex) {
-    uint32_t val = 0;
+    uint32_t val __attribute__ ((aligned (4))) = 0;
     // remove optional leading '0x'
     if (hex[0] == '0' && hex[1] == 'x') {
         hex += 2;
@@ -396,7 +396,7 @@ uint32_t Helpers::hextoint(const char * hex) {
 
 // quick char to long
 uint16_t Helpers::atoint(const char * value) {
-    unsigned int x = 0;
+    unsigned int x __attribute__ ((aligned (4))) = 0;
     while (*value != '\0') {
         x = (x * 10) + (*value - '0');
         ++value;

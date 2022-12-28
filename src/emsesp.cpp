@@ -56,18 +56,18 @@ Shower       EMSESP::shower_;       // Shower logic
 
 // static/common variables
 uint8_t  EMSESP::actual_master_thermostat_ = EMSESP_DEFAULT_MASTER_THERMOSTAT; // which thermostat leads when multiple found
-uint16_t EMSESP::watch_id_                 = WATCH_ID_NONE;                    // for when log is TRACE. 0 means no trace set
+uint16_t EMSESP::watch_id_                 __attribute__ ((aligned (4))) = WATCH_ID_NONE;                    // for when log is TRACE. 0 means no trace set
+uint16_t EMSESP::read_id_                  __attribute__ ((aligned (4))) = WATCH_ID_NONE;
+uint16_t EMSESP::publish_id_               __attribute__ ((aligned (4))) = 0;
+uint32_t EMSESP::last_fetch_               __attribute__ ((aligned (4))) = 0;
+uint64_t EMSESP::tx_delay_                 __attribute__ ((aligned (4))) = 0;
 uint8_t  EMSESP::watch_                    = 0;                                // trace off
-uint16_t EMSESP::read_id_                  = WATCH_ID_NONE;
 bool     EMSESP::read_next_                = false;
-uint16_t EMSESP::publish_id_               = 0;
 bool     EMSESP::tap_water_active_         = false; // for when Boiler states we having running warm water. used in Shower()
 uint8_t  EMSESP::cur_burn_pow_             = 0; // current boiler power for calculating gas meter reading. used in heartbeat()
-uint32_t EMSESP::last_fetch_               = 0;
 uint8_t  EMSESP::publish_all_idx_          = 0;
 uint8_t  EMSESP::unique_id_count_          = 0;
 bool     EMSESP::trace_raw_                = false;
-uint64_t EMSESP::tx_delay_                 = 0;
 bool     EMSESP::force_scan_               = false;
 
 // for a specific EMS device go and request data values
@@ -117,11 +117,11 @@ void EMSESP::scan_devices() {
 */
 uint8_t EMSESP::check_master_device(const uint8_t device_id, const uint16_t type_id, const bool read) {
     if (actual_master_thermostat_ == 0x18) {
-        uint16_t mon_ids[4]    = {0x02A5, 0x02A6, 0x02A7, 0x02A8};
-        uint16_t set_ids[4]    = {0x02B9, 0x02BA, 0x02BB, 0x02BC};
-        uint16_t summer_ids[4] = {0x02AF, 0x02B0, 0x02B1, 0x02B2};
-        uint16_t curve_ids[4]  = {0x029B, 0x029C, 0x029D, 0x029E};
-        uint16_t master_ids[]  = {0x02F5, 0x031B, 0x031D, 0x031E, 0x023A, 0x0267, 0x0240};
+        uint16_t mon_ids[4]    __attribute__ ((aligned (4))) = {0x02A5, 0x02A6, 0x02A7, 0x02A8};
+        uint16_t set_ids[4]    __attribute__ ((aligned (4))) = {0x02B9, 0x02BA, 0x02BB, 0x02BC};
+        uint16_t summer_ids[4] __attribute__ ((aligned (4))) = {0x02AF, 0x02B0, 0x02B1, 0x02B2};
+        uint16_t curve_ids[4]  __attribute__ ((aligned (4))) = {0x029B, 0x029C, 0x029D, 0x029E};
+        uint16_t master_ids[]  __attribute__ ((aligned (4))) = {0x02F5, 0x031B, 0x031D, 0x031E, 0x023A, 0x0267, 0x0240};
         // look for heating circuits
         for (uint8_t i = 0; i < 4; i++) {
             if (type_id == mon_ids[i] || type_id == set_ids[i] || type_id == summer_ids[i] || type_id == curve_ids[i]) {
@@ -190,7 +190,7 @@ uint8_t EMSESP::bus_status() {
     }
 
     // check if we have Tx issues.
-    uint32_t total_sent = txservice_.telegram_read_count() + txservice_.telegram_write_count();
+    uint32_t total_sent __attribute__ ((aligned (4))) = txservice_.telegram_read_count() + txservice_.telegram_write_count();
 
     // nothing sent successfully, also no errors - must be ok
     if ((total_sent == 0) && (txservice_.telegram_fail_count() == 0)) {
@@ -368,7 +368,7 @@ void EMSESP::publish_all(bool force) {
 
 // on command "publish HA" loop and wait between devices for publishing all sensors
 void EMSESP::publish_all_loop() {
-    static uint32_t last = 0;
+    static uint32_t last __attribute__ ((aligned (4))) = 0;
     if (!Mqtt::connected() || !publish_all_idx_) {
         return;
     }
@@ -467,7 +467,7 @@ void EMSESP::publish_response(std::shared_ptr<const Telegram> telegram) {
     doc["data"] = buffer;
 
     if (telegram->message_length <= 4) {
-        uint32_t value = 0;
+        uint32_t value __attribute__ ((aligned (4))) = 0;
         for (uint8_t i = 0; i < telegram->message_length; i++) {
             value = (value << 8) + telegram->message_data[i];
         }
@@ -974,7 +974,7 @@ void EMSESP::send_write_request(const uint16_t type_id, const uint8_t dest, cons
 // the CRC check is not done here, only when it's added to the Rx queue with add()
 void EMSESP::incoming_telegram(uint8_t * data, const uint8_t length) {
 #ifdef EMSESP_UART_DEBUG
-    static uint32_t rx_time_ = 0;
+    static uint32_t rx_time_ __attribute__ ((aligned (4))) = 0;
 #endif
     // check first for echo
     uint8_t first_value = data[0];

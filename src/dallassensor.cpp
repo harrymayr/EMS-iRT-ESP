@@ -62,7 +62,7 @@ void DallasSensor::reload() {
 
 void DallasSensor::loop() {
 #ifndef EMSESP_STANDALONE
-    uint32_t time_now = uuid::get_uptime();
+    uint32_t time_now __attribute__ ((aligned (4))) = uuid::get_uptime();
 
     if (state_ == State::IDLE) {
         if (time_now - last_activity_ >= READ_INTERVAL_MS) {
@@ -116,7 +116,7 @@ void DallasSensor::loop() {
                     case TYPE_DS18S20:
                     case TYPE_DS1822:
                     case TYPE_DS1825:
-                        int16_t t;
+                        int16_t t __attribute__ ((aligned (4)));
                         t = get_temperature_c(addr);
                         if ((t >= -550) && (t <= 1250)) {
                             // check if we have this sensor already
@@ -228,7 +228,7 @@ int16_t DallasSensor::get_temperature_c(const uint8_t addr[]) {
         return EMS_VALUE_SHORT_NOTSET;
     }
 
-    int16_t raw_value = ((int16_t)scratchpad[SCRATCHPAD_TEMP_MSB] << 8) | scratchpad[SCRATCHPAD_TEMP_LSB];
+    int16_t raw_value __attribute__ ((aligned (4))) = ((int16_t)scratchpad[SCRATCHPAD_TEMP_MSB] << 8) | scratchpad[SCRATCHPAD_TEMP_LSB];
 
     if (addr[0] == TYPE_DS18S20) {
         raw_value = (raw_value << 3) + 12 - scratchpad[SCRATCHPAD_CNT_REM];

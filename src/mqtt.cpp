@@ -29,22 +29,22 @@ AsyncMqttClient * Mqtt::mqttClient_;
 std::string Mqtt::mqtt_base_;
 uint8_t     Mqtt::mqtt_qos_;
 bool        Mqtt::mqtt_retain_;
-uint32_t    Mqtt::publish_time_boiler_;
-uint32_t    Mqtt::publish_time_thermostat_;
-uint32_t    Mqtt::publish_time_solar_;
-uint32_t    Mqtt::publish_time_mixer_;
-uint32_t    Mqtt::publish_time_other_;
-uint32_t    Mqtt::publish_time_sensor_;
+uint32_t    Mqtt::publish_time_boiler_     __attribute__ ((aligned (4)));
+uint32_t    Mqtt::publish_time_thermostat_ __attribute__ ((aligned (4)));
+uint32_t    Mqtt::publish_time_solar_      __attribute__ ((aligned (4)));
+uint32_t    Mqtt::publish_time_mixer_      __attribute__ ((aligned (4)));
+uint32_t    Mqtt::publish_time_other_      __attribute__ ((aligned (4)));
+uint32_t    Mqtt::publish_time_sensor_     __attribute__ ((aligned (4)));
 uint8_t     Mqtt::mqtt_format_;
 bool        Mqtt::mqtt_enabled_;
 
 std::vector<Mqtt::MQTTSubFunction> Mqtt::mqtt_subfunctions_;
 
-uint16_t                           Mqtt::mqtt_publish_fails_ = 0;
+uint16_t                           Mqtt::mqtt_publish_fails_ __attribute__ ((aligned (4))) = 0;
+uint16_t                           Mqtt::mqtt_message_id_    __attribute__ ((aligned (4))) = 0;
 bool                               Mqtt::connecting_         = false;
 bool                               Mqtt::initialized_        = false;
 uint8_t                            Mqtt::connectcount_       = 0;
-uint16_t                           Mqtt::mqtt_message_id_    = 0;
 std::list<Mqtt::QueuedMqttMessage> Mqtt::mqtt_messages_;
 char                               will_topic_[Mqtt::MQTT_TOPIC_MAX_SIZE]; // because MQTT library keeps only char pointer
 
@@ -124,7 +124,7 @@ void Mqtt::loop() {
     if (!connected()) {
         return;
     }
-    uint32_t currentMillis = uuid::get_uptime();
+    uint32_t currentMillis __attribute__ ((aligned (4))) = uuid::get_uptime();
 
     // publish top item from MQTT queue to stop flooding
     if ((uint32_t)(currentMillis - last_mqtt_poll_) > MQTT_PUBLISH_WAIT) {
@@ -712,7 +712,7 @@ void Mqtt::process_queue() {
     // if we're subscribing...
     if (message->operation == Operation::SUBSCRIBE) {
         LOG_DEBUG(F("Subscribing to topic: %s"), topic);
-        uint16_t packet_id = mqttClient_->subscribe(topic, mqtt_qos_);
+        uint16_t packet_id __attribute__ ((aligned (4))) = mqttClient_->subscribe(topic, mqtt_qos_);
         if (!packet_id) {
             LOG_DEBUG(F("Error subscribing to %s"), topic);
         }
@@ -729,7 +729,7 @@ void Mqtt::process_queue() {
     }
 
     // else try and publish it
-    uint16_t packet_id = mqttClient_->publish(topic, mqtt_qos_, message->retain, message->payload.c_str(), message->payload.size(), false, mqtt_message.id_);
+    uint16_t packet_id __attribute__ ((aligned (4))) = mqttClient_->publish(topic, mqtt_qos_, message->retain, message->payload.c_str(), message->payload.size(), false, mqtt_message.id_);
     LOG_DEBUG(F("Publishing topic %s (#%02d, retain=%d, try#%d, size %d, pid %d)"),
               topic,
               mqtt_message.id_,

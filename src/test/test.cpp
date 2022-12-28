@@ -238,19 +238,19 @@ void Test::run_test(uuid::console::Shell & shell, const std::string & cmd) {
         telegram->read_value(int8b, 0);
         shell.printfln("int8: expecting %02X, got:%02X", 1, int8b);
 
-        uint16_t uint16b = EMS_VALUE_USHORT_NOTSET;
+        uint16_t uint16b  __attribute__ ((aligned (4))) = EMS_VALUE_USHORT_NOTSET;
         telegram->read_value(uint16b, 1);
         shell.printfln("uint16: expecting %02X, got:%02X", 0x0203, uint16b);
 
-        int16_t int16b = EMS_VALUE_SHORT_NOTSET;
+        int16_t int16b  __attribute__ ((aligned (4))) = EMS_VALUE_SHORT_NOTSET;
         telegram->read_value(int16b, 1);
         shell.printfln("int16: expecting %02X, got:%02X", 0x0203, int16b);
 
-        int16_t int16b8 = EMS_VALUE_SHORT_NOTSET;
+        int16_t int16b8  __attribute__ ((aligned (4))) = EMS_VALUE_SHORT_NOTSET;
         telegram->read_value(int16b8, 1, 1); // force to 1 byte
         shell.printfln("int16 1 byte: expecting %02X, got:%02X", 0x02, int16b8);
 
-        uint32_t uint32b = EMS_VALUE_ULONG_NOTSET;
+        uint32_t uint32b  __attribute__ ((aligned (4))) = EMS_VALUE_ULONG_NOTSET;
         telegram->read_value(uint32b, 1, 3);
         shell.printfln("uint32 3 bytes: expecting %02X, got:%02X", 0x020304, uint32b);
 
@@ -259,7 +259,7 @@ void Test::run_test(uuid::console::Shell & shell, const std::string & cmd) {
         shell.printfln("uint32 4 bytes: expecting %02X, got:%02X", 0x02030405, uint32b);
 
         // check out of bounds
-        uint16_t uint16 = EMS_VALUE_USHORT_NOTSET;
+        uint16_t uint16  __attribute__ ((aligned (4))) = EMS_VALUE_USHORT_NOTSET;
         telegram->read_value(uint16, 9);
         shell.printfln("uint16 out-of-bounds: was:%02X, new:%02X", EMS_VALUE_USHORT_NOTSET, uint16);
         uint8_t uint8oob = EMS_VALUE_UINT_NOTSET;
@@ -274,7 +274,7 @@ void Test::run_test(uuid::console::Shell & shell, const std::string & cmd) {
         telegram->read_bitvalue(uint8bitb, 0, 0); // value is 0x01 = 0000 0001
         shell.printfln("uint8 bit read: expecting 1, got:%d", uint8bitb);
 
-        float test_float = 20.56;
+        float test_float  __attribute__ ((aligned (4))) = 20.56;
         char  result[100];
         Helpers::render_value(result, test_float, 2);
         shell.printfln("Float test from %f to %s", test_float, result);

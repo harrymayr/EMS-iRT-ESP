@@ -73,7 +73,12 @@ class System {
 
     bool check_upgrade();
     void send_heartbeat();
-    static float   gasReading_;  // calculated gas meter reading 
+
+#ifdef ESP32
+    __NOINIT_ATTR static uint32_t gasReading_;  // calculated gas meter reading 
+#else
+    static uint32_t gasReading_;  // calculated gas meter reading 
+#endif
     static uint16_t convFactor_; // convertion factor m³<->Wh
 
   private:

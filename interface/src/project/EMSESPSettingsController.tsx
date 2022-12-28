@@ -353,8 +353,8 @@ function EMSESPSettingsControllerForm(props: EMSESPSettingsControllerFormProps) 
                 margin="normal"
             />
             <TextValidator
-                validators={['isNumber', 'minNumber:0', 'maxNumber:99999']}
-                errorMessages={["Must be a number", "Must be 0 or higher", "Max value is 99999 (99999 m³)"]}
+                validators={['required','isNumber', 'minNumber:0', 'maxNumber:99999']}
+                errorMessages={['Value is required',"Must be a number", "Must be 0 or higher", "Max value is 99999 (99999 m³)"]}
                 name="gas_meter_reading"
                 label="Gas meter reading (m³, 0=not set)"
                 fullWidth
@@ -365,8 +365,8 @@ function EMSESPSettingsControllerForm(props: EMSESPSettingsControllerFormProps) 
                 margin="normal"
             />
             <TextValidator
-                validators={['isNumber', 'minNumber:0', 'maxNumber:12000']}
-                errorMessages={["Must be a number", "Must be 0 or higher", "Max value is 12000"]}
+                validators={['required','isNumber', 'minNumber:0', 'maxNumber:12000']}
+                errorMessages={['Value is required',"Must be a number", "Must be 0 or higher", "Max value is 12000"]}
                 name="conv_factor"
                 label="Conversion factor m³<-> Wh"
                 fullWidth
