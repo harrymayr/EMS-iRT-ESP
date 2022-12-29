@@ -459,7 +459,7 @@ void System::send_heartbeat() {
             // these are all from the heartbeat MQTT topic
             Mqtt::register_mqtt_ha_sensor(nullptr, nullptr, F_(wifirssi), EMSdevice::HEARTBEAT, "rssi", F("dBm"), F_(iconwifi),F("measurement"),F("signal_strength"));
             Mqtt::register_mqtt_ha_sensor(nullptr, nullptr, F_(uptime), EMSdevice::HEARTBEAT, "uptime", nullptr, F_(iconcounter),F("measurement"));
-            Mqtt::register_mqtt_ha_sensor(nullptr, nullptr, F_(uptimesec), EMSdevice::HEARTBEAT, "uptime_sec", F("sec"), F_(iconlockout),F("measurement"));
+            Mqtt::register_mqtt_ha_sensor(nullptr, nullptr, F_(uptimesec), EMSdevice::HEARTBEAT, "uptime_sec", F("sec"), F_(iconclockout),F("measurement"));
             Mqtt::register_mqtt_ha_sensor(nullptr, nullptr, F_(mqttfails), EMSdevice::HEARTBEAT, "mqtt_fails", nullptr, F_(iconcounter),F("measurement"));
             Mqtt::register_mqtt_ha_sensor(nullptr, nullptr, F_(txwrites), EMSdevice::HEARTBEAT, "tx_send", nullptr, F_(iconcounter),F("measurement"));
             Mqtt::register_mqtt_ha_sensor(nullptr, nullptr, F_(txreads), EMSdevice::HEARTBEAT, "tx_read", nullptr, F_(iconcounter),F("measurement"));

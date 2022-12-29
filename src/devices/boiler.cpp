@@ -99,7 +99,7 @@ Boiler::Boiler(uint8_t device_type, int8_t device_id, uint8_t product_id, const 
         register_telegram_type(0xA8, F("IRTGetWwTemp"), false, [&](std::shared_ptr<const Telegram> t) { process_IRTGetWwTemp(t); });
         register_telegram_type(0xAA, F("IRTGetBurnerRuntime"), false, [&](std::shared_ptr<const Telegram> t) { process_IRTGetBurnerRuntime(t); });
         register_telegram_type(0xAB, F("IRTGetBurnerStarts"), false, [&](std::shared_ptr<const Telegram> t) { process_IRTGetBurnerStarts(t); });
-        register_telegram_type(0xC9, F("IRTHandlerUnknownFunktion"), false, [&](std::shared_ptr<const Telegram> t) { process_IRTHandlerUnknownFunktion(t); });
+        register_telegram_type(0xC9, F("IRTGetMinuteTimer"), false, [&](std::shared_ptr<const Telegram> t) { process_IRTGetMinuteTimer(t); });
         register_telegram_type(0xDE, F("IRTGetMaxBurnerPowerSetting"), false, [&](std::shared_ptr<const Telegram> t) { process_IRTGetMaxBurnerPowerSetting(t); });
         register_telegram_type(0xE8, F("IRTHandlerUnknownFunktion"), false, [&](std::shared_ptr<const Telegram> t) { process_IRTHandlerUnknownFunktion(t); });
         register_telegram_type(0xED, F("IRTHandlerUnknownFunktion"), false, [&](std::shared_ptr<const Telegram> t) { process_IRTHandlerUnknownFunktion(t); });
@@ -243,6 +243,13 @@ void Boiler::register_mqtt_ha_config() {
         if (Helpers::hasValue(burnWorkMin_)) {
             Mqtt::register_mqtt_ha_sensor(nullptr, nullptr, F_(burnWorkMin), device_type(), "burnWorkMin", F_(min), nullptr);
         }
+        if (Helpers::hasValue(minuteTimer_)) {
+            Mqtt::register_mqtt_ha_sensor(nullptr, nullptr, F_(minuteTimer), device_type(), "minuteTimer", F_(min), F_(iconclockout));
+        }
+        if (Helpers::hasValue(emsesp::System::gasReading_)) {
+            Mqtt::register_mqtt_ha_sensor(nullptr, F_(mqtt_suffix_ww), F_(gasReading), device_type(), "gasReading", F_(meter3), F_(icongasmeter));
+        }
+
     }
     else if (mqtt_ha_config_ == 2) {
         // values should be sent if hasValues checks to false, but I see MQTT messages for non iRT sensors, so avoid sending it by tx-Mode
@@ -366,7 +373,6 @@ void Boiler::register_mqtt_ha_config_ww() {
         if (Helpers::hasValue(wWActive_)) {
             Mqtt::register_mqtt_ha_sensor(nullptr, F_(mqtt_suffix_ww), F_(wWActive), device_type(), "wWActive", nullptr, nullptr);
         }
-        Mqtt::register_mqtt_ha_sensor(nullptr, F_(mqtt_suffix_ww), F_(gasReading), device_type(), "gasReading", nullptr, nullptr);
     }
     else if (mqtt_ha_config_ww_ == 1) {
         // values should be sent if hasValues checks to false, but I see MQTT messages for non iRT sensors, so avoid sending it by tx-Mode
@@ -485,6 +491,8 @@ void Boiler::device_info_web(JsonArray & root, uint8_t & part) {
         create_value_json(root, F("heatWorkMin"), nullptr, F_(heatWorkMin), nullptr, json);
         create_value_json(root, F("UBAuptime"), nullptr, F_(UBAuptime), nullptr, json);
         // optional in info
+        create_value_json(root, F("minuteTimer"), nullptr, F_(minuteTimer), F_(min), json);
+        create_value_json(root, F("gasReading"), nullptr, F_(gasReading), F_(meter3), json);
         create_value_json(root, F("maintenanceMessage"), nullptr, F_(maintenanceMessage), nullptr, json);
         create_value_json(root, F("maintenance"), nullptr, F_(maintenance), (maintenanceType_ == 1) ? F_(hours) : nullptr, json);
     } else if (part == 1) {
@@ -518,7 +526,6 @@ void Boiler::device_info_web(JsonArray & root, uint8_t & part) {
         create_value_json(root, F("wWSetPumpPower"), nullptr, F_(wWSetPumpPower), F_(percent), json);
         create_value_json(root, F("wWStarts"), nullptr, F_(wWStarts), nullptr, json);
         create_value_json(root, F("wWWorkM"), nullptr, F_(wWWorkM), nullptr, json);
-        create_value_json(root, F("gasReading"), nullptr, F_(gasReading), F_(meter3), json);
     } else if (part == 2) {
         part = 0;                              // no more parts
         if (!export_values_info(json, true)) { // append info values
@@ -677,8 +684,6 @@ bool Boiler::export_values_ww(JsonObject & json, const bool textformat) {
     if (Helpers::hasValue(wWMaxPower_)) {
         json["wWMaxPower"] = wWMaxPower_;
     }
-
-    json["gasReading"] = (float)emsesp::System::gasReading_/emsesp::System::convFactor_/4.0;
 
     // Warm Water active time
     Helpers::json_time(json, "wWWorkM", wWWorkM_, textformat);
@@ -853,6 +858,16 @@ bool Boiler::export_values_main(JsonObject & json, const bool textformat) {
 
     // Total UBA working time
     Helpers::json_time(json, "UBAuptime", UBAuptime_, textformat);
+
+    // minute timer
+    if (Helpers::hasValue(minuteTimer_)) {
+        json["minuteTimer"] = minuteTimer_;
+    }
+
+    // gas meter reading
+    if (Helpers::hasValue(emsesp::System::gasReading_)) {
+        json["gasReading"] = (float)emsesp::System::gasReading_/emsesp::System::convFactor_/4.0;
+    }
 
     /*
     // Service Code & Service Code Number. Priority error - maintenance - workingcode
@@ -1341,6 +1356,12 @@ void Boiler::process_IRTGetBurnerStarts(std::shared_ptr<const Telegram> telegram
 {
     changed_ |= telegram->read_value(burnStarts_, 4);
 }
+
+void Boiler::process_IRTGetMinuteTimer(std::shared_ptr<const Telegram> telegram)  // 0xC9
+{
+    changed_ |= telegram->read_value(minuteTimer_, 4);
+}
+
 void Boiler::process_IRTGetMaxBurnerPowerSetting(std::shared_ptr<const Telegram> telegram)  // 0xDE
 {
     changed_ |= telegram->read_value(burnMaxPower_raw, 4);	

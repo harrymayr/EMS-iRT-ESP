@@ -191,7 +191,7 @@ void RxService::add(uint8_t * data, uint8_t length) {
 
     if (EMSbus::tx_mode() <= EMS_TXMODE_HW) {
     // validate the CRC. if it fails then increment the number of corrupt/incomplete telegrams and only report to console/syslog
-    uint8_t crc = calculate_crc(data, length - 1);
+        uint8_t crc = calculate_crc(data, length - 1);
         if (data[length - 1] != crc) {
             telegram_error_count_++;
             LOG_ERROR(F("Rx: %s (CRC %02X != %02X)-TX-Mode %02X"), Helpers::data_to_hex(data, length).c_str(), data[length - 1], crc, EMSbus::tx_mode());
@@ -203,7 +203,7 @@ void RxService::add(uint8_t * data, uint8_t length) {
     // this only happens once with the first valid rx telegram is processed
         if (ems_mask() == EMS_MASK_UNSET) {
             ems_mask(data[0]);
-    }
+        }
     }
     else {
         /* the last byte should be the break (0x00). If it is not 0x00 leave it */
@@ -310,10 +310,9 @@ void RxService::add(uint8_t * data, uint8_t length) {
             } else {
                 // Drop buffer on crc error
                 telegram_error_count_++;
-                LOG_ERROR(F("Rx: %s (data %02X != %02X or %02X)"), Helpers::data_to_hex(data, length).c_str(), data[i], data[i+1],(0xFF - data[i+1]));
+                LOG_ERROR(F("Rx1: %s (data %02X != %02X or %02X)"), Helpers::data_to_hex(data, length).c_str(), data[i], data[i+1],(0xFF - data[i+1]));
                 i++;
-                break;
-    //			return;
+                return;
             }
         }
         // no data ?
@@ -322,7 +321,33 @@ void RxService::add(uint8_t * data, uint8_t length) {
         }
         i = 0;
         ret = 0;
+        // first check, if one of the (up to 3) commands have a crc error, if so drop whole telegramm
         while (((i + 4) <= j) && (ret == 0)) {
+            message_data   = &irt_buffer[i];
+            if (irt_buffer[i] & 0x80) {
+                if ((i + 5) <= j) {
+                message_length = 5;
+                }
+            } else {
+                message_length = 4;
+            }
+            i = i + message_length;
+//            LOG_DEBUG(F("Rx: %s "), Helpers::data_to_hex(message_data, message_length).c_str());
+            crc = calculate_irt_crc(message_data, message_length);
+            if (message_data[3] != crc) {
+                // Drop buffer on crc error
+                telegram_error_count_++;
+                LOG_ERROR(F("Rx2: %s (CRC %02X != %02X)"), Helpers::data_to_hex(message_data, message_length).c_str(), message_data[3], crc);
+                return;
+            }
+        }  
+        // no error, so process telegram  
+        i = 0;
+        ret = 0;
+        while (((i + 4) <= j) && (ret == 0)) {
+            // iRT can have more than 1 command in 1 telegram
+            if (i>0)
+                increment_telegram_count();
             type_id        = irt_buffer[i];
             message_data   = &irt_buffer[i];
             if (irt_buffer[i] & 0x80) {
@@ -335,32 +360,18 @@ void RxService::add(uint8_t * data, uint8_t length) {
                 operation = Telegram::Operation::RX;
             }
             i = i + message_length;
-//            LOG_DEBUG(F("Rx: %s "), Helpers::data_to_hex(message_data, message_length).c_str());
-            crc = calculate_irt_crc(message_data, message_length);
-            if (message_data[3] != crc) {
-                // Drop buffer on crc error
-                telegram_error_count_++;
-                LOG_ERROR(F("Rx: %s (CRC %02X != %02X)"), Helpers::data_to_hex(message_data, message_length).c_str(), message_data[3], crc);
-                return;
-            }
-    
-    /*             if ((global_has_changed) && (EMS_Sys_Status.emsLogging != EMS_SYS_LOGGING_NONE)) {
-                    irt_dump_status_line();
-                    global_has_changed = 0;
-                }
-    */    
 
             // if we're watching and "raw" print out actual telegram as bytes to the console
             if (EMSESP::watch() == EMSESP::Watch::WATCH_RAW) {
                 uint16_t trace_watch_id __attribute__ ((aligned (4))) = EMSESP::watch_id();
                 if ((trace_watch_id == WATCH_ID_NONE) || (type_id == trace_watch_id)
                     || ((trace_watch_id < 0x80) && ((src == trace_watch_id) || (dest == trace_watch_id)))) {
-                    LOG_NOTICE(F("Rx: %s"), Helpers::data_to_hex(data, length).c_str());
+                    LOG_NOTICE(F("Rx: %s"), Helpers::data_to_hex(message_data, message_length).c_str());
                 } else if (EMSESP::trace_raw()) {
-                    LOG_TRACE(F("Rx: %s"), Helpers::data_to_hex(data, length).c_str());
+                    LOG_TRACE(F("Rx: %s"), Helpers::data_to_hex(message_data, message_length).c_str());
                 }
             } else if (EMSESP::trace_raw()) {
-                LOG_TRACE(F("Rx: %s"), Helpers::data_to_hex(data, length).c_str());
+                LOG_TRACE(F("Rx: %s"), Helpers::data_to_hex(message_data, message_length).c_str());
             }
 
         #ifdef EMSESP_DEBUG
@@ -670,6 +681,9 @@ void TxService::add(uint8_t operation, const uint8_t * data, const uint8_t lengt
 
 // send a Tx telegram to request data from an EMS device
 void TxService::read_request(const uint16_t type_id, const uint8_t dest, const uint8_t offset) {
+    if (EMSbus::tx_mode() == EMS_TXMODE_IRT_PASSIVE) {
+        return;
+    }
     LOG_DEBUG(F("Tx read request to device 0x%02X for type ID 0x%02X"), dest, type_id);
 
     uint8_t message_data[1] = {EMS_MAX_TELEGRAM_LENGTH}; // request all data, 32 bytes
@@ -678,7 +692,7 @@ void TxService::read_request(const uint16_t type_id, const uint8_t dest, const u
 
 // Send a raw telegram to the bus, telegram is a text string of hex values
 void TxService::send_raw(const char * telegram_data) {
-    if (telegram_data == nullptr) {
+    if ((telegram_data == nullptr) || (EMSbus::tx_mode() == EMS_TXMODE_IRT_PASSIVE)){
         return;
     }
 

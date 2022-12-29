@@ -70,11 +70,13 @@ class Boiler : public EMSdevice {
     static constexpr uint8_t  EMS_TYPE_UBAParameters      = 0x16;
     static constexpr uint8_t  EMS_TYPE_UBAParametersPlus  = 0xE6;
     static constexpr uint8_t  EMS_TYPE_UBAParameterWWPlus = 0xEA;
-    static constexpr uint16_t EMS_TYPE_UBAInfomration     = 0x495;
-    static constexpr uint16_t EMS_TYPE_UBAEnergySupplied  = 0x494;
+    static constexpr uint16_t EMS_TYPE_UBAInfomration     __attribute__ ((aligned (4))) = 0x495;
+    static constexpr uint16_t EMS_TYPE_UBAEnergySupplied  __attribute__ ((aligned (4))) = 0x494;
 
     static constexpr uint8_t EMS_BOILER_SELFLOWTEMP_HEATING = 20; // was originally 70, changed to 30 for issue #193, then to 20 with issue #344
-
+    
+    // iRT specific?
+    uint8_t minuteTimer_        = EMS_VALUE_UINT_NOTSET; // 5 minute timer
     // UBAParameterWW
     uint8_t wWActivated_        = EMS_VALUE_BOOL_NOTSET; // Warm Water activated
     uint8_t wWActivated_raw     = EMS_VALUE_BOOL_NOTSET; // Warm Water activated
@@ -86,16 +88,21 @@ class Boiler : public EMSdevice {
     uint8_t wWComfort_          = EMS_VALUE_UINT_NOTSET; // WW comfort mode
 
     // MC10Status
-    uint16_t mixerTemp_      = EMS_VALUE_USHORT_NOTSET; // mixer temperature
-    uint16_t tankMiddleTemp_ = EMS_VALUE_USHORT_NOTSET; // tank middle temperature (TS3)
+    uint16_t mixerTemp_      __attribute__ ((aligned (4))) = EMS_VALUE_USHORT_NOTSET; // mixer temperature
+    uint16_t tankMiddleTemp_ __attribute__ ((aligned (4))) = EMS_VALUE_USHORT_NOTSET; // tank middle temperature (TS3)
 
     // UBAMonitorFast - 0x18 on EMS1
+    uint16_t curFlowTemp_       __attribute__ ((aligned (4))) = EMS_VALUE_USHORT_NOTSET; // Current flow temperature
+    uint16_t wWStorageTemp1_    __attribute__ ((aligned (4))) = EMS_VALUE_USHORT_NOTSET; // warm water storage temp 1
+    uint16_t wWStorageTemp2_    __attribute__ ((aligned (4))) = EMS_VALUE_USHORT_NOTSET; // warm water storage temp 2
+    uint16_t retTemp_           __attribute__ ((aligned (4))) = EMS_VALUE_USHORT_NOTSET; // Return temperature
+    uint16_t flameCurr_         __attribute__ ((aligned (4))) = EMS_VALUE_USHORT_NOTSET; // Flame current in micro amps
+    uint16_t serviceCodeNumber_ __attribute__ ((aligned (4))) = EMS_VALUE_USHORT_NOTSET; // error/service code
+    uint32_t lastCodeDate_      __attribute__ ((aligned (4))) = 0;
+    char     serviceCode_[4]    = {'\0'};                  // 3 character status/service code
+    char     lastCode_[30]      = {'\0'};
     uint8_t  selFlowTemp_       = EMS_VALUE_UINT_NOTSET;   // Selected flow temperature
-    uint16_t curFlowTemp_       = EMS_VALUE_USHORT_NOTSET; // Current flow temperature
     uint8_t  curFlowTemp_raw    = EMS_VALUE_UINT_NOTSET;   // Current flow temperature
-    uint16_t wWStorageTemp1_    = EMS_VALUE_USHORT_NOTSET; // warm water storage temp 1
-    uint16_t wWStorageTemp2_    = EMS_VALUE_USHORT_NOTSET; // warm water storage temp 2
-    uint16_t retTemp_           = EMS_VALUE_USHORT_NOTSET; // Return temperature
     uint8_t  retTemp_raw        = EMS_VALUE_UINT_NOTSET;   // Return temperature
     uint8_t  burnGas_           = EMS_VALUE_BOOL_NOTSET;   // Gas on/off
     uint8_t  fanWork_           = EMS_VALUE_BOOL_NOTSET;   // Fan on/off
@@ -106,34 +113,29 @@ class Boiler : public EMSdevice {
     uint8_t  selBurnPow_        = EMS_VALUE_UINT_NOTSET;   // Burner max power %
     uint8_t  curBurnPow_        = EMS_VALUE_UINT_NOTSET;   // Burner current power %
     uint8_t  curBurnPow_raw     = EMS_VALUE_UINT_NOTSET;   // Burner current power %
-    uint16_t flameCurr_         = EMS_VALUE_USHORT_NOTSET; // Flame current in micro amps
     uint8_t  sysPress_          = EMS_VALUE_UINT_NOTSET;   // System pressure
-    char     serviceCode_[4]    = {'\0'};                  // 3 character status/service code
-    uint16_t serviceCodeNumber_ = EMS_VALUE_USHORT_NOTSET; // error/service code
     uint8_t  serviceCodeNumber_raw = EMS_VALUE_UINT_NOTSET; // error/service code
     uint8_t  boilerState_       = EMS_VALUE_UINT_NOTSET;   // Boiler state flag
-    char     lastCode_[30]      = {'\0'};
-    uint32_t lastCodeDate_      = 0;
 
     // UBAMonitorSlow - 0x19 on EMS1
-    int16_t  outdoorTemp_    = EMS_VALUE_SHORT_NOTSET;  // Outside temperature
+    int16_t  outdoorTemp_    __attribute__ ((aligned (4))) = EMS_VALUE_SHORT_NOTSET;  // Outside temperature
+    uint16_t boilTemp_       __attribute__ ((aligned (4))) = EMS_VALUE_USHORT_NOTSET; // Boiler temperature
+    uint16_t exhaustTemp_    __attribute__ ((aligned (4))) = EMS_VALUE_USHORT_NOTSET; // Exhaust temperature
+    uint32_t burnStarts_     __attribute__ ((aligned (4))) = EMS_VALUE_ULONG_NOTSET;  // # burner restarts
+    uint32_t burnWorkMin_    __attribute__ ((aligned (4))) = EMS_VALUE_ULONG_NOTSET;  // Total burner operating time
+    uint32_t heatWorkMin_    __attribute__ ((aligned (4))) = EMS_VALUE_ULONG_NOTSET;  // Total heat operating time
+    uint16_t switchTemp_     __attribute__ ((aligned (4))) = EMS_VALUE_USHORT_NOTSET; // Switch temperature
     uint8_t  outdoorTemp_raw = EMS_VALUE_UINT_NOTSET;   // Outside temperature
-    uint16_t boilTemp_       = EMS_VALUE_USHORT_NOTSET; // Boiler temperature
-    uint16_t exhaustTemp_    = EMS_VALUE_USHORT_NOTSET; // Exhaust temperature
     uint8_t  heatingPumpMod_ = EMS_VALUE_UINT_NOTSET;   // Heating pump modulation %
-    uint32_t burnStarts_     = EMS_VALUE_ULONG_NOTSET;  // # burner restarts
-    uint32_t burnWorkMin_    = EMS_VALUE_ULONG_NOTSET;  // Total burner operating time
     uint8_t  burnWorkMin_raw = EMS_VALUE_UINT_NOTSET;   // Total burner operating time
-    uint32_t heatWorkMin_    = EMS_VALUE_ULONG_NOTSET;  // Total heat operating time
-    uint16_t switchTemp_     = EMS_VALUE_USHORT_NOTSET; // Switch temperature
 
     // UBAMonitorWW
     uint8_t  wWSetTemp_      = EMS_VALUE_UINT_NOTSET;   // Warm Water set temperature
-    uint16_t wWCurTemp_      = EMS_VALUE_USHORT_NOTSET; // Warm Water current temperature
+    uint16_t wWCurTemp_      __attribute__ ((aligned (4))) = EMS_VALUE_USHORT_NOTSET; // Warm Water current temperature
+    uint16_t wWCurTemp2_     __attribute__ ((aligned (4))) = EMS_VALUE_USHORT_NOTSET; // Warm Water current temperature storage
+    uint32_t wWStarts_       __attribute__ ((aligned (4))) = EMS_VALUE_ULONG_NOTSET;  // Warm Water # starts
+    uint32_t wWWorkM_        __attribute__ ((aligned (4))) = EMS_VALUE_ULONG_NOTSET;  // Warm Water # minutes
     uint8_t  wWCurTemp_raw   = EMS_VALUE_UINT_NOTSET;   // Warm Water current temperature
-    uint16_t wWCurTemp2_     = EMS_VALUE_USHORT_NOTSET; // Warm Water current temperature storage
-    uint32_t wWStarts_       = EMS_VALUE_ULONG_NOTSET;  // Warm Water # starts
-    uint32_t wWWorkM_        = EMS_VALUE_ULONG_NOTSET;  // Warm Water # minutes
     uint8_t  wWOneTime_      = EMS_VALUE_BOOL_NOTSET;   // Warm Water one time function on/off
     uint8_t  wWDisinfecting_ = EMS_VALUE_BOOL_NOTSET;   // Warm Water disinfection on/off
     uint8_t  wWCharging_     = EMS_VALUE_BOOL_NOTSET;   // Warm Water charging on/off
@@ -145,7 +147,7 @@ class Boiler : public EMSdevice {
     uint8_t  wWMaxPower_     = EMS_VALUE_UINT_NOTSET;   // Warm Water maximum power
 
     // UBATotalUptime
-    uint32_t UBAuptime_ = EMS_VALUE_ULONG_NOTSET; // Total UBA working hours
+    uint32_t UBAuptime_ __attribute__ ((aligned (4))) = EMS_VALUE_ULONG_NOTSET; // Total UBA working hours
 
     // UBAParameters
     uint8_t heatingActivated_ = EMS_VALUE_BOOL_NOTSET; // Heating activated on the boiler
@@ -174,33 +176,33 @@ class Boiler : public EMSdevice {
     uint8_t heatingPump2Mod_ = EMS_VALUE_UINT_NOTSET; // heating pump 2 modulation from 0xE3 (heating pumps)
 
     // UBAInformation
-    uint32_t upTimeControl_             = EMS_VALUE_ULONG_NOTSET; // Operating time control
-    uint32_t upTimeCompHeating_         = EMS_VALUE_ULONG_NOTSET; // Operating time compressor heating
-    uint32_t upTimeCompCooling_         = EMS_VALUE_ULONG_NOTSET; // Operating time compressor cooling
-    uint32_t upTimeCompWw_              = EMS_VALUE_ULONG_NOTSET; // Operating time compressor warm water
-    uint32_t heatingStarts_             = EMS_VALUE_ULONG_NOTSET; // Heating starts (control)
-    uint32_t coolingStarts_             = EMS_VALUE_ULONG_NOTSET; // Cooling  starts (control)
-    uint32_t wWStarts2_                 = EMS_VALUE_ULONG_NOTSET; // Warm water starts (control)
-    uint32_t nrgConsTotal_              = EMS_VALUE_ULONG_NOTSET; // Energy consumption total
-    uint32_t auxElecHeatNrgConsTotal_   = EMS_VALUE_ULONG_NOTSET; // Auxiliary electrical heater energy consumption total
-    uint32_t auxElecHeatNrgConsHeating_ = EMS_VALUE_ULONG_NOTSET; // Auxiliary electrical heater energy consumption heating
-    uint32_t auxElecHeatNrgConsDHW_     = EMS_VALUE_ULONG_NOTSET; // Auxiliary electrical heater energ consumption DHW
-    uint32_t nrgConsCompTotal_          = EMS_VALUE_ULONG_NOTSET; // Energy consumption compressor total
-    uint32_t nrgConsCompHeating_        = EMS_VALUE_ULONG_NOTSET; // Energy consumption compressor heating
-    uint32_t nrgConsCompWw_             = EMS_VALUE_ULONG_NOTSET; // Energy consumption compressor warm water
-    uint32_t nrgConsCompCooling_        = EMS_VALUE_ULONG_NOTSET; // Energy consumption compressor cooling
+    uint32_t upTimeControl_             __attribute__ ((aligned (4))) = EMS_VALUE_ULONG_NOTSET; // Operating time control
+    uint32_t upTimeCompHeating_         __attribute__ ((aligned (4))) = EMS_VALUE_ULONG_NOTSET; // Operating time compressor heating
+    uint32_t upTimeCompCooling_         __attribute__ ((aligned (4))) = EMS_VALUE_ULONG_NOTSET; // Operating time compressor cooling
+    uint32_t upTimeCompWw_              __attribute__ ((aligned (4))) = EMS_VALUE_ULONG_NOTSET; // Operating time compressor warm water
+    uint32_t heatingStarts_             __attribute__ ((aligned (4))) = EMS_VALUE_ULONG_NOTSET; // Heating starts (control)
+    uint32_t coolingStarts_             __attribute__ ((aligned (4))) = EMS_VALUE_ULONG_NOTSET; // Cooling  starts (control)
+    uint32_t wWStarts2_                 __attribute__ ((aligned (4))) = EMS_VALUE_ULONG_NOTSET; // Warm water starts (control)
+    uint32_t nrgConsTotal_              __attribute__ ((aligned (4))) = EMS_VALUE_ULONG_NOTSET; // Energy consumption total
+    uint32_t auxElecHeatNrgConsTotal_   __attribute__ ((aligned (4))) = EMS_VALUE_ULONG_NOTSET; // Auxiliary electrical heater energy consumption total
+    uint32_t auxElecHeatNrgConsHeating_ __attribute__ ((aligned (4))) = EMS_VALUE_ULONG_NOTSET; // Auxiliary electrical heater energy consumption heating
+    uint32_t auxElecHeatNrgConsDHW_     __attribute__ ((aligned (4))) = EMS_VALUE_ULONG_NOTSET; // Auxiliary electrical heater energ consumption DHW
+    uint32_t nrgConsCompTotal_          __attribute__ ((aligned (4))) = EMS_VALUE_ULONG_NOTSET; // Energy consumption compressor total
+    uint32_t nrgConsCompHeating_        __attribute__ ((aligned (4))) = EMS_VALUE_ULONG_NOTSET; // Energy consumption compressor heating
+    uint32_t nrgConsCompWw_             __attribute__ ((aligned (4))) = EMS_VALUE_ULONG_NOTSET; // Energy consumption compressor warm water
+    uint32_t nrgConsCompCooling_        __attribute__ ((aligned (4))) = EMS_VALUE_ULONG_NOTSET; // Energy consumption compressor cooling
 
     // UBAEnergySupplied
-    uint32_t nrgSuppTotal_   = EMS_VALUE_ULONG_NOTSET; // Energy supplied total
-    uint32_t nrgSuppHeating_ = EMS_VALUE_ULONG_NOTSET; // Energy supplied heating
-    uint32_t nrgSuppWw_      = EMS_VALUE_ULONG_NOTSET; // Energy supplied warm water
-    uint32_t nrgSuppCooling_ = EMS_VALUE_ULONG_NOTSET; // Energy supplied cooling
+    uint32_t nrgSuppTotal_   __attribute__ ((aligned (4))) = EMS_VALUE_ULONG_NOTSET; // Energy supplied total
+    uint32_t nrgSuppHeating_ __attribute__ ((aligned (4))) = EMS_VALUE_ULONG_NOTSET; // Energy supplied heating
+    uint32_t nrgSuppWw_      __attribute__ ((aligned (4))) = EMS_VALUE_ULONG_NOTSET; // Energy supplied warm water
+    uint32_t nrgSuppCooling_ __attribute__ ((aligned (4))) = EMS_VALUE_ULONG_NOTSET; // Energy supplied cooling
 
     // _UBAMaintenanceData
     uint8_t maintenanceMessage_  = EMS_VALUE_UINT_NOTSET;
     uint8_t maintenanceType_     = EMS_VALUE_UINT_NOTSET;
     uint8_t maintenanceTime_     = EMS_VALUE_UINT_NOTSET;
-    char    maintenanceDate_[12] = {'\0'};
+    char    maintenanceDate_[12]  __attribute__ ((aligned (4))) = {'\0'};
 
     void process_UBAParameterWW(std::shared_ptr<const Telegram> telegram);
     void process_UBAMonitorFast(std::shared_ptr<const Telegram> telegram);
@@ -244,6 +246,8 @@ class Boiler : public EMSdevice {
     void process_IRTGetBurnerStarts(std::shared_ptr<const Telegram> telegram);  // 0xAB
     void process_IRTGetMaxBurnerPowerSetting(std::shared_ptr<const Telegram> telegram);  // 0xDE
     void process_IRTHandlerUnknownFunktion(std::shared_ptr<const Telegram> telegram);  // unknown funktions
+    void process_IRTGetMinuteTimer(std::shared_ptr<const Telegram> telegram);  // 0xC9
+    
     
     // commands - none of these use the additional id parameter
     bool set_warmwater_mode(const char * value, const int8_t id);
