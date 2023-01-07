@@ -49,6 +49,7 @@
 #include "shower.h"
 #include "roomcontrol.h"
 #include "command.h"
+#include "pid.h"
 
 #define WATCH_ID_NONE 0 // no watch id set
 
@@ -167,6 +168,10 @@ class EMSESP {
         return cur_burn_pow_;
     }
 
+    static uint8_t current_ret_temp() {
+        return cur_ret_temp_;
+    }
+
     static bool trace_raw() {
         return trace_raw_;
     }
@@ -183,7 +188,12 @@ class EMSESP {
         cur_burn_pow_ = cur_burn_pow;
     }
 
+    static void cur_ret_temp(const uint8_t cur_ret_temp) {
+        cur_ret_temp_ = cur_ret_temp;
+    }
+
     static void fetch_device_values(const uint8_t device_id = 0);
+    static void fetch_device_values_fast(const uint8_t device_id = 0);
 
     static bool add_device(const uint8_t device_id, const uint8_t product_id, std::string & version, const uint8_t brand);
     static void scan_devices();
@@ -230,6 +240,7 @@ class EMSESP {
 
     static constexpr uint32_t EMS_FETCH_FREQUENCY __attribute__ ((aligned (4))) = 60000; // check every minute
     static uint32_t           last_fetch_  __attribute__ ((aligned (4)));
+    static uint32_t           last_fetch_fast_  __attribute__ ((aligned (4)));
 
     struct Device_record {
         uint8_t                     product_id;
@@ -249,6 +260,7 @@ class EMSESP {
     static bool     read_next_;
     static bool     tap_water_active_;
     static uint8_t  cur_burn_pow_;
+    static uint8_t  cur_ret_temp_;
     static uint8_t  publish_all_idx_;
     static uint8_t  unique_id_count_;
     static bool     trace_raw_;

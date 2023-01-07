@@ -25,8 +25,6 @@ emsesp
 /interface/build
 /interface/node_modules
 /interface/.eslintcache
-src/pid.cpp
-src/pid.h
 interface/.idea/inspectionProfiles/Project_Default.xml
 interface/.idea/vcs.xml
 interface/.idea/workspace.xml

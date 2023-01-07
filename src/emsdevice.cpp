@@ -223,6 +223,17 @@ void EMSdevice::fetch_values() {
     }
 }
 
+// for each telegram that has the fetch value set (true) do a read request
+void EMSdevice::fetch_values_fast() {
+    EMSESP::logger().debug(F("Fetching values for device ID 0x%02X"), device_id());
+
+    for (const auto & tf : telegram_functions_) {
+        if (tf.fetch_fast_) {
+            read_command(tf.telegram_type_id_);
+        }
+    }
+}
+
 // toggle on/off automatic fetch for a telegram id
 void EMSdevice::toggle_fetch(uint16_t telegram_id, bool toggle) {
     EMSESP::logger().debug(F("Toggling fetch for device ID 0x%02X, telegram ID 0x%02X to %d"), device_id(), telegram_id, toggle);
@@ -230,6 +241,17 @@ void EMSdevice::toggle_fetch(uint16_t telegram_id, bool toggle) {
     for (auto & tf : telegram_functions_) {
         if (tf.telegram_type_id_ == telegram_id) {
             tf.fetch_ = toggle;
+        }
+    }
+}
+
+// toggle on/off automatic fetch for a telegram id
+void EMSdevice::toggle_fetch_fast(uint16_t telegram_id, bool toggle) {
+    EMSESP::logger().debug(F("Toggling fetch for device ID 0x%02X, telegram ID 0x%02X to %d"), device_id(), telegram_id, toggle);
+
+    for (auto & tf : telegram_functions_) {
+        if (tf.telegram_type_id_ == telegram_id) {
+            tf.fetch_fast_ = toggle;
         }
     }
 }
@@ -244,6 +266,15 @@ bool EMSdevice::get_toggle_fetch(uint16_t telegram_id) {
     return false;
 }
 
+// get status of automatic fetch for a telegram id
+bool EMSdevice::get_toggle_fetch_fast(uint16_t telegram_id) {
+    for (auto & tf : telegram_functions_) {
+        if (tf.telegram_type_id_ == telegram_id) {
+            return tf.fetch_fast_;
+        }
+    }
+    return false;
+}
 
 // list all the telegram type IDs for this device
 void EMSdevice::show_telegram_handlers(uuid::console::Shell & shell) {
@@ -296,8 +327,8 @@ void EMSdevice::register_mqtt_cmd(const __FlashStringHelper * cmd, cmdfunction_p
 }
 
 // register a call back function for a specific telegram type
-void EMSdevice::register_telegram_type(const uint16_t telegram_type_id, const __FlashStringHelper * telegram_type_name, bool fetch, process_function_p f) {
-    telegram_functions_.emplace_back(telegram_type_id, telegram_type_name, fetch, f);
+void EMSdevice::register_telegram_type(const uint16_t telegram_type_id, const __FlashStringHelper * telegram_type_name, bool fetch, process_function_p f, bool fetch_fast) {
+    telegram_functions_.emplace_back(telegram_type_id, telegram_type_name, fetch, fetch_fast, f);
 }
 
 // return the name of the telegram type

@@ -33,6 +33,7 @@
 
 #define EMS_MAXBUFFERS 3     // buffers for circular filling to avoid collisions
 #define EMS_MAXBUFFERSIZE 33 // max size of the buffer. EMS packets are max 32 bytes, plus extra for BRK
+#define IRT_MAXTXBUFFERSIZE (EMS_MAXBUFFERSIZE / 2)		// max size of tx buffer
 
 #define EMSUART_recvTaskPrio 2     // 0, 1 or 2. 0 being the lowest
 #define EMSUART_recvTaskQueueLen 3 // number of queued Rx triggers
@@ -53,6 +54,7 @@
 // #define EMSUART_TX_TIMEOUT (32 * 8) // 256 for tx_mode 1 - see https://github.com/emsesp/EMS-ESP/issues/398#issuecomment-645886277
 #define EMSUART_TX_TIMEOUT (220 * 8) // 1760 as in v1.9 (180 ms)
 #define EMSUART_TX_BRK_EMS (EMSUART_TX_BIT_TIME * 10)
+#define IRTUART_TX_MSG_TIMEOUT_MS 4000	// if a message is still waiting after 4s abort
 
 // HT3/Junkers - Time to send one Byte (8 Bits, 1 Start Bit, 1 Stop Bit) plus 7 bit delay. The -8 is for lag compensation.
 // since we use a faster processor the lag is negligible
@@ -79,11 +81,13 @@ class EMSuart {
     static void ICACHE_FLASH_ATTR     send_poll(uint8_t data);
     static uint16_t ICACHE_FLASH_ATTR transmit(uint8_t * buf, uint8_t len);
 
-
   private:
     static void IRAM_ATTR   emsuart_rx_intr_handler(void * para);
+    static void IRAM_ATTR   irtuart_rx_intr_handler(void * para);
     static void ICACHE_FLASH_ATTR emsuart_recvTask(os_event_t * events);
     static void ICACHE_FLASH_ATTR restart();
+    static uint16_t ICACHE_FLASH_ATTR irtuart_check_tx(uint8_t reset_if_done);
+    static uint16_t ICACHE_FLASH_ATTR irtuart_send_tx_buffer(uint8_t address, uint8_t *telegram, uint8_t len);
 
 };
 

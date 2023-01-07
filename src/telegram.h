@@ -48,6 +48,7 @@ static constexpr int8_t   EMS_VALUE_INT_NOTSET    = 0x7F;       // for signed 8-
 static constexpr uint16_t EMS_VALUE_USHORT_NOTSET  __attribute__ ((aligned (4))) = 0x7D00;     //  32000: for 2-byte unsigned shorts
 static constexpr int16_t  EMS_VALUE_SHORT_NOTSET  __attribute__ ((aligned (4))) = 0x7D00;     //  32000: for 2-byte signed shorts
 static constexpr uint32_t EMS_VALUE_ULONG_NOTSET  __attribute__ ((aligned (4))) = 0x00FFFFFF; // for 3-byte and 4-byte longs
+static constexpr float_t  EMS_VALUE_FLOAT_NOTSET  __attribute__ ((aligned (4))) = 0xFFFFFFFF; // for 3-byte and 4-byte longs
 
 static constexpr uint8_t EMS_MAX_TELEGRAM_LENGTH         = 64; // max length of a complete EMS telegram
 static constexpr uint8_t IRT_MAX_TELEGRAM_LENGTH         = 64; // max length of a complete iRT telegram
@@ -82,6 +83,15 @@ class Telegram {
         TX_READ,
         TX_WRITE,
     };
+
+    #define IRT_MAX_SUB_MSGS 5 // max 5 messages in a single go
+    #define IRT_MAX_SUB_MSG_LEN 3 // max 3 bytes in a message
+    // The Tx send package
+    typedef struct {
+        uint8_t						address;													// address of sender
+        uint8_t						msg_in_use;												// number of sub msg's in telegram
+        uint8_t						data[IRT_MAX_SUB_MSGS][IRT_MAX_SUB_MSG_LEN];	// data of msgs
+    } _IRT_TxTelegram;
 
     std::string to_string_message() const;
     std::string to_string() const;
@@ -161,6 +171,10 @@ class EMSbus {
         return ems_bus_id_;
     }
 
+    static uint8_t iRT_address() {
+        return iRT_address_;
+    }
+
     static void ems_bus_id(uint8_t ems_bus_id) {
         ems_bus_id_ = ems_bus_id;
     }
@@ -191,6 +205,8 @@ class EMSbus {
 
     static uint8_t calculate_crc(const uint8_t * data, const uint8_t length);
     static uint8_t calculate_irt_crc(const uint8_t * data, const uint8_t length);
+    static uint8_t irt_check_checksum(uint8_t *data, uint8_t length);
+
   private:
     static constexpr uint32_t EMS_BUS_TIMEOUT = 30000; // timeout in ms before recognizing the ems bus is offline (30 seconds)
 
@@ -198,6 +214,7 @@ class EMSbus {
     static bool     bus_connected_;     // start assuming the bus hasn't been connected
     static uint8_t  ems_mask_;          // unset=0xFF, buderus=0x00, junkers/ht3=0x80
     static uint8_t  ems_bus_id_;        // the bus id, which configurable and stored in settings
+    static uint8_t  iRT_address_;       // the bus iRT id, which is fixed to 1
     static uint8_t  tx_mode_;           // local copy of the tx mode
     static uint8_t  tx_state_;          // state of the Tx line (NONE or waiting on a TX_READ or TX_WRITE)
 };
@@ -278,7 +295,8 @@ class TxService : public EMSbus {
                  const uint16_t validateid,
                  const bool     front = false);
     void     add(const uint8_t operation, const uint8_t * data, const uint8_t length, const uint16_t validateid, const bool front = false);
-    void     read_request(const uint16_t type_id, const uint8_t dest, const uint8_t offset = 0);
+    void     read_request(const uint16_t type_id, const uint8_t dest, const uint8_t offset = 0, const uint16_t value = 0);
+    void     write_request(const uint16_t type_id, const uint8_t dest, const uint8_t offset, uint8_t * message_data, const uint8_t  message_length, const uint16_t validate_typeid);
     void     send_raw(const char * telegram_data);
     void     send_poll();
     void     flush_tx_queue();
@@ -379,6 +397,7 @@ class TxService : public EMSbus {
     uint32_t telegram_read_count_  = 0; // # Tx successful reads
     uint32_t telegram_write_count_ = 0; // # Tx successful writes
     uint32_t telegram_fail_count_  = 0; // # Tx unsuccessful transmits
+    uint8_t  poll_step_  = 0;           // # Tx polling step
 
     std::shared_ptr<Telegram> telegram_last_;
     uint16_t                  telegram_last_post_send_query_; // which type ID to query after a successful send, to read back the values just written

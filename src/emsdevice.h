@@ -128,7 +128,7 @@ class EMSdevice {
     void   show_mqtt_handlers(uuid::console::Shell & shell);
 
     using process_function_p = std::function<void(std::shared_ptr<const Telegram>)>;
-    void register_telegram_type(const uint16_t telegram_type_id, const __FlashStringHelper * telegram_type_name, bool fetch, process_function_p cb);
+    void register_telegram_type(const uint16_t telegram_type_id, const __FlashStringHelper * telegram_type_name, bool fetch, process_function_p cb, bool fetch_fast = false);
     bool handle_telegram(std::shared_ptr<const Telegram> telegram);
 
     void write_command(const uint16_t type_id, const uint8_t offset, uint8_t * message_data, const uint8_t message_length, const uint16_t validate_typeid);
@@ -148,8 +148,11 @@ class EMSdevice {
     std::string telegram_type_name(std::shared_ptr<const Telegram> telegram);
 
     void fetch_values();
+    void fetch_values_fast();
     void toggle_fetch(uint16_t telegram_id, bool toggle);
+    void toggle_fetch_fast(uint16_t telegram_id, bool toggle);
     bool get_toggle_fetch(uint16_t telegram_id);
+    bool get_toggle_fetch_fast(uint16_t telegram_id);
 
     void reserve_mem(size_t n) {
         telegram_functions_.reserve(n);
@@ -248,12 +251,14 @@ class EMSdevice {
         uint16_t                    telegram_type_id_;   // it's type_id
         const __FlashStringHelper * telegram_type_name_; // e.g. RC20Message
         bool                        fetch_;              // if this type_id be queried automatically
+        bool                        fetch_fast_;         // if this type_id be queried automatically
         process_function_p          process_function_;
 
-        TelegramFunction(uint16_t telegram_type_id, const __FlashStringHelper * telegram_type_name, bool fetch, process_function_p process_function)
+        TelegramFunction(uint16_t telegram_type_id, const __FlashStringHelper * telegram_type_name, bool fetch, bool fetch_fast, process_function_p process_function)
             : telegram_type_id_(telegram_type_id)
             , telegram_type_name_(telegram_type_name)
             , fetch_(fetch)
+            , fetch_fast_(fetch_fast) 
             , process_function_(process_function) {
         }
     };

@@ -53,17 +53,14 @@ bool     System::analog_enabled_ = false;
 uint16_t System::analog_        __attribute__ ((aligned (4))) = 0;
 bool     System::syslog_enabled_ = false;
 PButton  System::myPButton_;
-uint32_t System::gasReading_    __attribute__ ((aligned (4))) = 0;  // calculated gas meter reading 
+float_t  System::gasReading_    __attribute__ ((aligned (4))) = 0;  // calculated gas meter reading 
 uint16_t System::convFactor_    __attribute__ ((aligned (4))) = 10300; // convertion factor m³<->Wh
 uint32_t System::maxWhPower_    __attribute__ ((aligned (4))) = 0;  // calculated gas meter reading 
 uint32_t System::storedGasReading_ __attribute__ ((aligned (4)))= 0;  // stored gas meter reading 
 #if defined(ESP8266)
-typedef struct {
-    int gasReadingRTC;
-} MyData;
-
-RTCMemory<MyData> rtcMemory;
+RTCMemory<System::MyData> System::rtcMemory;
 #endif
+
 // send on/off to a gpio pin
 // value: true = HIGH, false = LOW
 // http://ems-esp/api?device=system&cmd=pin&data=1&id=2
@@ -85,6 +82,7 @@ bool System::command_pin(const char * value, const int8_t id) {
 
 // send raw to ems
 bool System::command_send(const char * value, const int8_t id) {
+    LOG_INFO(F("Sending raw telegram ID:%d"),id);
     EMSESP::send_raw_telegram(value); // ignore id
     return true;
 }
@@ -372,9 +370,6 @@ void System::loop() {
         last_heartbeat_ = currentMillis;
         send_heartbeat();
         // calculate gas meter reading
-#if defined(EMSESP_DEBUG)
-    LOG_INFO(F("last burner power %d, current burner power %d"), last_burnPower_, EMSESP::current_burn_pow());
-#endif
         yield();
 #if defined(ESP8266)
         bool RTCData = rtcMemory.begin();
@@ -434,7 +429,7 @@ void System::loop() {
 void System::show_mem(const char * note) {
 #if defined(ESP8266)
 #if defined(EMSESP_DEBUG)
-    LOG_INFO(F("(%s) Free heap: %d%% (%lu), frag:%u%%"), note, free_mem(), (unsigned long)ESP.getFreeHeap(), ESP.getHeapFragmentation());
+//    LOG_INFO(F("(%s) Free heap: %d%% (%lu), frag:%u%%"), note, free_mem(), (unsigned long)ESP.getFreeHeap(), ESP.getHeapFragmentation());
 #endif
 #endif
 }

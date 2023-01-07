@@ -60,11 +60,13 @@ uint16_t EMSESP::watch_id_                 __attribute__ ((aligned (4))) = WATCH
 uint16_t EMSESP::read_id_                  __attribute__ ((aligned (4))) = WATCH_ID_NONE;
 uint16_t EMSESP::publish_id_               __attribute__ ((aligned (4))) = 0;
 uint32_t EMSESP::last_fetch_               __attribute__ ((aligned (4))) = 0;
+uint32_t EMSESP::last_fetch_fast_          __attribute__ ((aligned (4))) = 0;
 uint64_t EMSESP::tx_delay_                 __attribute__ ((aligned (4))) = 0;
 uint8_t  EMSESP::watch_                    = 0;                                // trace off
 bool     EMSESP::read_next_                = false;
 bool     EMSESP::tap_water_active_         = false; // for when Boiler states we having running warm water. used in Shower()
 uint8_t  EMSESP::cur_burn_pow_             = 0; // current boiler power for calculating gas meter reading. used in heartbeat()
+uint8_t  EMSESP::cur_ret_temp_             = 0; // current return temperature for setting flow-temp. used in heartbeat()
 uint8_t  EMSESP::publish_all_idx_          = 0;
 uint8_t  EMSESP::unique_id_count_          = 0;
 bool     EMSESP::trace_raw_                = false;
@@ -79,6 +81,21 @@ void EMSESP::fetch_device_values(const uint8_t device_id) {
         if (emsdevice) {
             if ((device_id == 0) || emsdevice->is_device_id(device_id)) {
                 emsdevice->fetch_values();
+                if (device_id != 0) {
+                    return; // quit, we only want to return the selected device
+                }
+            }
+        }
+    }
+}
+
+void EMSESP::fetch_device_values_fast(const uint8_t device_id) {
+    if (EMSbus::tx_mode() == EMS_TXMODE_IRT_PASSIVE)
+        return;
+    for (const auto & emsdevice : emsdevices) {
+        if (emsdevice) {
+            if ((device_id == 0) || emsdevice->is_device_id(device_id)) {
+                emsdevice->fetch_values_fast();
                 if (device_id != 0) {
                     return; // quit, we only want to return the selected device
                 }
@@ -174,7 +191,7 @@ void EMSESP::init_tx() {
     });
 
 
-    if (tx_mode <= 4) {
+    if (tx_mode != EMS_TXMODE_IRT_PASSIVE) {
       txservice_.start(); // sends out request to EMS bus for all devices
     }
     // force a fetch for all new values, unless Tx is set to off
@@ -932,6 +949,14 @@ bool EMSESP::command_info(uint8_t device_type, JsonObject & json, const int8_t i
     for (const auto & emsdevice : emsdevices) {
         if (emsdevice && (emsdevice->device_type() == device_type)) {
             ok |= emsdevice->export_values(json, id);
+            if (device_type == DeviceType::BOILER) {
+                if (EMSESP::current_ret_temp() < 400) {
+                    send_raw_telegram("0B 08 01 00 01 24 00 00");
+                }
+                else if (EMSESP::current_ret_temp() > 460) {
+                    send_raw_telegram("0B 08 01 00 01 20 00 00");
+                }
+            }
         }
     }
 
@@ -955,7 +980,7 @@ void EMSESP::send_write_request(const uint16_t type_id,
                                 uint8_t *      message_data,
                                 const uint8_t  message_length,
                                 const uint16_t validate_typeid) {
-    txservice_.add(Telegram::Operation::TX_WRITE, dest, type_id, offset, message_data, message_length, validate_typeid, true);
+    txservice_.write_request(type_id, dest, offset, message_data, message_length, validate_typeid);
 }
 
 void EMSESP::send_write_request(const uint16_t type_id, const uint8_t dest, const uint8_t offset, const uint8_t value) {
@@ -991,6 +1016,8 @@ void EMSESP::incoming_telegram(uint8_t * data, const uint8_t length) {
     // are we waiting for a response from a recent Tx Read or Write?
     uint8_t tx_state = EMSbus::tx_state();
     if (tx_state != Telegram::Operation::NONE) {
+        LOG_DEBUG(F("tx_state: %d, length: %d, first_value 0x%x"),tx_state,length,first_value);
+        
         bool tx_successful = false;
         EMSbus::tx_state(Telegram::Operation::NONE); // reset Tx wait state
 
@@ -1008,10 +1035,18 @@ void EMSESP::incoming_telegram(uint8_t * data, const uint8_t length) {
                 txservice_.send_poll(); // close the bus
                 txservice_.reset_retry_count();
             }
-        } else if (tx_state == Telegram::Operation::TX_READ) {
+        } else if ((tx_state == Telegram::Operation::TX_READ) && (EMSESP::rxservice_.tx_mode() >= EMS_TXMODE_IRT_PASSIVE) && 
+                      (first_value == 0x01)) {
+//            LOG_DEBUG(F("Test Tx read src: 0x%x, dest: 0x%x, is_last_tx: %d - %s"),src,dest,txservice_.is_last_tx(src, dest),Helpers::data_to_hex(data, length).c_str());
+                txservice_.increment_telegram_read_count();
+                txservice_.send_poll(); // close the bus
+                txservice_.reset_retry_count();
+                tx_successful = true;
+        } else if ((tx_state == Telegram::Operation::TX_READ) && (EMSESP::rxservice_.tx_mode() <= EMS_TXMODE_HW)) {
             // got a telegram with data in it. See if the src/dest matches that from the last one we sent and continue to process it
             uint8_t src  = data[0];
             uint8_t dest = data[1];
+
             if (txservice_.is_last_tx(src, dest)) {
                 LOG_DEBUG(F("Last Tx read successful"));
                 txservice_.increment_telegram_read_count();
@@ -1028,7 +1063,8 @@ void EMSESP::incoming_telegram(uint8_t * data, const uint8_t length) {
         }
 
         // if Tx wasn't successful, retry or just give up
-        if (!tx_successful) {
+        if ((!tx_successful) && (EMSESP::rxservice_.tx_mode() <= EMS_TXMODE_HW)){
+            LOG_DEBUG(F("Retry_tx state %d: %s"), tx_state, Helpers::data_to_hex(data, length).c_str());
             txservice_.retry_tx(tx_state, data, length);
             return;
         }
@@ -1065,7 +1101,8 @@ void EMSESP::incoming_telegram(uint8_t * data, const uint8_t length) {
 #endif
         // check for poll to us, if so send top message from Tx queue immediately and quit
         // if ht3 poll must be ems_bus_id else if Buderus poll must be (ems_bus_id | 0x80)
-        if ((first_value ^ 0x80 ^ rxservice_.ems_mask()) == txservice_.ems_bus_id()) {
+        if (((first_value ^ 0x80 ^ rxservice_.ems_mask()) == txservice_.ems_bus_id()) || 
+          ((EMSESP::rxservice_.tx_mode() > EMS_TXMODE_IRT_PASSIVE) && (first_value == 0x01))) {
             txservice_.send();
         }
         // send remote room temperature if active
@@ -1148,6 +1185,10 @@ void EMSESP::loop() {
     if ((uuid::get_uptime() - last_fetch_ > EMS_FETCH_FREQUENCY)) {
         last_fetch_ = uuid::get_uptime();
         fetch_device_values();
+    }
+    if ((uuid::get_uptime() - last_fetch_fast_ > EMS_FETCH_FREQUENCY/6)) {
+        last_fetch_fast_ = uuid::get_uptime();
+        fetch_device_values_fast();
     }
 
     delay(1); // helps telnet catch up

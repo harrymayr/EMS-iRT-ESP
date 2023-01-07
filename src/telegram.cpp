@@ -18,6 +18,9 @@
 
 #include "telegram.h"
 #include "emsesp.h"
+#if defined(ESP8266)
+#include "RTCMemory.h"
+#endif
 
 namespace emsesp {
 
@@ -40,6 +43,7 @@ uint32_t EMSbus::last_bus_activity_ __attribute__ ((aligned (4))) = 0;          
 bool     EMSbus::bus_connected_     = false;          // start assuming the bus hasn't been connected
 uint8_t  EMSbus::ems_mask_          = EMS_MASK_UNSET; // unset so its triggered when booting, the its 0x00=buderus, 0x80=junker/ht3
 uint8_t  EMSbus::ems_bus_id_        = EMSESP_DEFAULT_EMS_BUS_ID;
+uint8_t  EMSbus::iRT_address_       = 1;
 uint8_t  EMSbus::tx_mode_           = EMSESP_DEFAULT_TX_MODE;
 uint8_t  EMSbus::tx_state_          = Telegram::Operation::NONE;
 
@@ -102,6 +106,24 @@ uint8_t EMSbus::calculate_irt_crc(const uint8_t * data, const uint8_t length)
 		break;
 	}
     return check;
+}
+
+uint8_t EMSbus::irt_check_checksum(uint8_t *data, uint8_t length)
+{
+	/* check if if a sub-packet has the right length
+	 * and the checksum is correct.
+	 * checksum calculation is done by xoring the three
+	 * bytes. The second byte is shifted 1 bit to the left and
+	 * the third byte is shifted 2 bits to the left before
+	 * xoring the bytes.
+	 * Depending on the high bit of the second byte and the 2 high bits
+	 * of the third byte an additional xor is applied to the output.
+	 **/
+
+	if ((length < 4) || (length > 5)) return 0;
+
+	if (calculate_irt_crc(data, length) == data[3]) return 1;
+	return 0;
 }
 
 // creates a telegram object
@@ -316,6 +338,9 @@ void RxService::add(uint8_t * data, uint8_t length) {
             }
         }
         // no data ?
+    #ifdef EMSESP_DEBUG
+        LOG_DEBUG(F("[DEBUG] New Rx telegram, count %d"), j);
+    #endif
         if (j < 1){
             return;
         }
@@ -342,6 +367,9 @@ void RxService::add(uint8_t * data, uint8_t length) {
             }
         }  
         // no error, so process telegram  
+    #ifdef EMSESP_DEBUG
+        LOG_DEBUG(F("[DEBUG] New Rx telegram, message length %d"), message_length);
+    #endif
         i = 0;
         ret = 0;
         while (((i + 4) <= j) && (ret == 0)) {
@@ -426,7 +454,28 @@ void TxService::start() {
 
     // send first Tx request to bus master (boiler) for its registered devices
     // this will be added to the queue and sent during the first tx loop()
-    read_request(EMSdevice::EMS_TYPE_UBADevices, EMSdevice::EMS_DEVICE_ID_BOILER);
+    if (EMSbus::tx_mode() < EMS_TXMODE_IRT_PASSIVE) 
+        read_request(EMSdevice::EMS_TYPE_UBADevices, EMSdevice::EMS_DEVICE_ID_BOILER);
+    else {
+        read_request(0x82, EMSdevice::EMS_DEVICE_ID_BOILER); // read Boiler-Flags
+        read_request(0xA3, EMSdevice::EMS_DEVICE_ID_BOILER); // read Display-Value
+#if defined(ESP8266)
+        bool RTCData = System::rtcMemory.begin();
+        System::MyData *data = System::rtcMemory.getData();
+        if (RTCData) {
+            uint8_t message_data[1];
+            message_data[0] = data->burnerPowerRTC;
+            write_request(0x07, 0x08, 0, message_data, 1, 0x07);
+            message_data[0] = data->selFlowTempRTC;
+            write_request(0x01, 0x08, 0, message_data, 1, 0x01);
+        }
+#endif        
+
+/*         send_raw("0B 08 01 00 01 24 00 00");
+        send_raw("0B 08 07 00 07 4D 00 00");
+        send_raw("0B 08 07 00 07 4D 00 00");
+        send_raw("0B 08 01 00 01 24 00 00");
+ */    }
 }
 
 // sends a 1 byte poll which is our own device ID
@@ -453,7 +502,7 @@ void TxService::send() {
     delayed_send_ = 0;
 
     // if we're in read-only mode (tx_mode 0) forget the Tx call
-    if (tx_mode()) {
+    if ((tx_mode() > 0) && (tx_mode() != EMS_TXMODE_IRT_PASSIVE)) {
         send_telegram(tx_telegrams_.front());
     }
 
@@ -481,7 +530,7 @@ void TxService::send_telegram(const QueuedTxTelegram & tx_telegram) {
     // check if we have to manipulate the id for thermostats > 0x18
     dest = EMSESP::check_master_device(dest, telegram->type_id, false);
 
-    if (telegram->operation == Telegram::Operation::TX_READ) {
+    if ((telegram->operation == Telegram::Operation::TX_READ) && (EMSESP::txservice_.tx_mode() <= EMS_TXMODE_HW)){
         dest |= 0x80; // read has 8th bit set for the destination
     }
     telegram_raw[1] = dest;
@@ -530,21 +579,29 @@ void TxService::send_telegram(const QueuedTxTelegram & tx_telegram) {
 
     telegram_last_ = std::make_shared<Telegram>(*telegram); // make a copy of the telegram
 
-    telegram_raw[length] = calculate_crc(telegram_raw, length); // generate and append CRC to the end
+    if (EMSESP::txservice_.tx_mode() <= EMS_TXMODE_HW) {
+        telegram_raw[length] = calculate_crc(telegram_raw, length); // generate and append CRC to the end
 
-    length++; // add one since we want to now include the CRC
+        length++; // add one since we want to now include the CRC
+    }
+    else{
+        telegram_raw[7] = calculate_irt_crc(telegram_raw+4,4);
+    }
 
-    LOG_DEBUG(F("Sending %s Tx [#%d], telegram: %s"),
+    LOG_DEBUG(F("Sending %s Tx [#%d], telegram: %s, length: %d, last telegram: %s"),
               (telegram->operation == Telegram::Operation::TX_WRITE) ? F("write") : F("read"),
               tx_telegram.id_,
-              Helpers::data_to_hex(telegram_raw, length).c_str());
+              Helpers::data_to_hex(telegram_raw, length).c_str(), length, EMSESP::pretty_telegram(telegram).c_str());
 
     set_post_send_query(tx_telegram.validateid_);
     // send the telegram to the UART Tx
     uint16_t status __attribute__ ((aligned (4))) = EMSuart::transmit(telegram_raw, length);
 
-    if (status == EMS_TX_STATUS_ERR) {
-        LOG_ERROR(F("Failed to transmit Tx via UART."));
+    if (EMSESP::txservice_.tx_mode() > EMS_TXMODE_HW)
+        increment_telegram_read_count();
+
+    if (status != EMS_TX_STATUS_OK) {
+//        LOG_ERROR(F("Failed to transmit Tx via UART. Status: 0x%x"), status);
         increment_telegram_fail_count();     // another Tx fail
         tx_state(Telegram::Operation::NONE); // nothing send, tx not in wait state
         return;
@@ -627,7 +684,7 @@ void TxService::add(uint8_t operation, const uint8_t * data, const uint8_t lengt
 
     // work out depending on the type, where the data message block starts and the message length
     // same logic as in RxService::add(), but adjusted for no appended CRC
-    if (data[2] != 0xFF) {
+    if ((data[2] != 0xFF) || (EMSESP::txservice_.tx_mode() > EMS_TXMODE_HW)) {
         // EMS 1.0
         type_id        = data[2];
         message_data   = data + 4;
@@ -663,13 +720,16 @@ void TxService::add(uint8_t operation, const uint8_t * data, const uint8_t lengt
 
     auto telegram = std::make_shared<Telegram>(operation, src, dest, type_id, offset, message_data, message_length); // operation is TX_WRITE or TX_READ
 
+    LOG_DEBUG(F("Sending %s Tx src: %d, dest: %d, type_id: 0x%x, telegram: %s"),
+              (telegram->operation == Telegram::Operation::TX_WRITE) ? F("write") : F("read"),
+              src, dest, type_id, Helpers::data_to_hex(message_data, message_length).c_str());
     // if the queue is full, make room but removing the last one
     if (tx_telegrams_.size() >= MAX_TX_TELEGRAMS) {
         tx_telegrams_.pop_front();
     }
 
 #ifdef EMSESP_DEBUG
-    LOG_DEBUG(F("[DEBUG] New Tx [#%d] telegram, length %d"), tx_telegram_id_, message_length);
+    LOG_DEBUG(F("[DEBUG] New Tx [#%d] telegram, length %d: %s"), tx_telegram_id_, message_length,EMSESP::pretty_telegram(telegram).c_str());
 #endif
 
     if (front) {
@@ -680,19 +740,57 @@ void TxService::add(uint8_t operation, const uint8_t * data, const uint8_t lengt
 }
 
 // send a Tx telegram to request data from an EMS device
-void TxService::read_request(const uint16_t type_id, const uint8_t dest, const uint8_t offset) {
-    if (EMSbus::tx_mode() == EMS_TXMODE_IRT_PASSIVE) {
+void TxService::read_request(const uint16_t type_id, const uint8_t dest, const uint8_t offset, const uint16_t value) {
+    if ((EMSbus::tx_mode() == EMS_TXMODE_IRT_PASSIVE) || !bus_connected()) {
         return;
     }
     LOG_DEBUG(F("Tx read request to device 0x%02X for type ID 0x%02X"), dest, type_id);
 
-    uint8_t message_data[1] = {EMS_MAX_TELEGRAM_LENGTH}; // request all data, 32 bytes
-    add(Telegram::Operation::TX_READ, dest, type_id, offset, message_data, 1, 0);
+    if (EMSbus::tx_mode() <= EMS_TXMODE_IRT_PASSIVE) {
+        uint8_t message_data[1] = {EMS_MAX_TELEGRAM_LENGTH}; // request all data, 32 bytes
+        add(Telegram::Operation::TX_READ, dest, type_id, offset, message_data, 1, 0);
+    }
+    else {
+        uint8_t message_data[6] = {0}; // 
+        uint8_t len = 4;
+        message_data[0] = (uint8_t)type_id;
+        message_data[1] = (uint8_t)(value >> 8);
+        message_data[2] = (uint8_t)(value & 0xFF);
+        message_data[3] = calculate_irt_crc(message_data,4);
+		if (message_data[0] & 0x80) {
+			// message with response
+		    len = 6;
+        }
+
+        add(Telegram::Operation::TX_READ, dest, type_id, 0, message_data, len, 0);
+    }
+}
+
+// send a Tx telegram to request data from an EMS device
+void TxService::write_request(const uint16_t type_id, const uint8_t dest, const uint8_t offset, uint8_t * message_data, const uint8_t  message_length, const uint16_t validate_typeid) {
+    if ((EMSbus::tx_mode() == EMS_TXMODE_IRT_PASSIVE) || !bus_connected()) {
+        return;
+    }
+    LOG_ERROR(F("Tx write request to device 0x%02X for type ID 0x%02X"), dest, type_id);
+
+    if (EMSbus::tx_mode() <= EMS_TXMODE_HW) {
+        add(Telegram::Operation::TX_WRITE, dest, type_id, offset, message_data, message_length, validate_typeid, true);
+    }
+    else if ((message_length == 1) && ((message_data[0] & 0x80) == 0)){
+        uint8_t temp[4] = {0}; // 
+        temp[0] = (uint8_t)type_id;
+        temp[1] = message_data[0];
+        temp[2] = 0;
+        temp[3] = calculate_irt_crc(temp,4);
+        add(Telegram::Operation::TX_WRITE, 0x08, type_id, 0, temp, 4, 0, true);
+        add(Telegram::Operation::TX_WRITE, 0x08, type_id, 0, temp, 4, 0, true);
+    }
 }
 
 // Send a raw telegram to the bus, telegram is a text string of hex values
 void TxService::send_raw(const char * telegram_data) {
     if ((telegram_data == nullptr) || (EMSbus::tx_mode() == EMS_TXMODE_IRT_PASSIVE)){
+        LOG_INFO(F("No telegram or wrong tx-mode: %d"), EMSbus::tx_mode());
         return;
     }
 
@@ -723,6 +821,7 @@ void TxService::send_raw(const char * telegram_data) {
             data[++count] = val;
         }
     }
+    LOG_DEBUG(F("Telegram %s count %d"), telegram, count);
 
     if (count == 0) {
         return; // nothing to send

@@ -30,6 +30,9 @@
 #ifndef EMSESP_STANDALONE
 #include <uuid/syslog.h>
 #endif
+#if defined(ESP8266)
+#include "RTCMemory.h"
+#endif
 
 #include <uuid/log.h>
 #include <PButton.h>
@@ -73,11 +76,21 @@ class System {
 
     bool check_upgrade();
     void send_heartbeat();
+#if defined(ESP8266)
+typedef struct {
+    int gasReadingRTC __attribute__ ((aligned (4)));
+    uint8_t burnerPowerRTC;
+    uint8_t selFlowTempRTC;
+    uint8_t heatingActivatedRTC;
+    uint8_t wWActivatedRTC;
+} MyData;
 
+static RTCMemory<MyData> rtcMemory;
+#endif
 #ifdef ESP32
-    __NOINIT_ATTR static uint32_t gasReading_;  // calculated gas meter reading 
+    __NOINIT_ATTR static float_t gasReading_;  // calculated gas meter reading 
 #else
-    static uint32_t gasReading_;  // calculated gas meter reading 
+    static float_t gasReading_;  // calculated gas meter reading 
 #endif
     static uint16_t convFactor_; // convertion factor m³<->Wh
 

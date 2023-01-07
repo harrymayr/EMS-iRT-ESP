@@ -84,7 +84,7 @@ void Mqtt::subscribe(const uint8_t device_type, const std::string & topic, mqtt_
 
 // subscribe to the command topic if it doesn't exist yet
 void Mqtt::register_command(const uint8_t device_type, const uint8_t device_id, const __FlashStringHelper * cmd, cmdfunction_p cb) {
-    std::string cmd_topic = EMSdevice::device_type_2_device_name(device_type);
+    std::string cmd_topic = EMSdevice::device_type_2_device_name(device_type) + "_cmd";
 
     bool exists = false;
     if (!mqtt_subfunctions_.empty()) {
@@ -773,9 +773,12 @@ void Mqtt::register_mqtt_ha_binary_sensor(const __FlashStringHelper * name, cons
 
     // StaticJsonDocument<EMSESP_MAX_JSON_SIZE_HA_CONFIG> doc;
     DynamicJsonDocument doc(EMSESP_MAX_JSON_SIZE_HA_CONFIG);
+    char device_name[50];
+    strncpy(device_name, EMSdevice::device_type_2_device_name(device_type).c_str(), sizeof(device_name));
     // build unique identifier, replacing all . with _ as not to break HA
     std::string uniq(50, '\0');
-    snprintf_P(&uniq[0], uniq.capacity() + 1, PSTR("%s_%s"), mqtt_base_.c_str(), entity);
+//    snprintf_P(&uniq[0], uniq.capacity() + 1, PSTR("%s_%s"), mqtt_base_.c_str(), entity);
+    snprintf_P(&uniq[0], uniq.capacity() + 1, PSTR("%s_%s_%s"), mqtt_base_.c_str(), device_name, entity);
     std::replace(uniq.begin(), uniq.end(), '.', '_');
 
     char temp[50];
@@ -783,9 +786,13 @@ void Mqtt::register_mqtt_ha_binary_sensor(const __FlashStringHelper * name, cons
     doc["name"]    = temp;
     doc["uniq_id"] = uniq;
 
-    char state_t[50];
-    snprintf_P(state_t, sizeof(state_t), PSTR("%s/%s"), mqtt_base_.c_str(), entity);
-    doc["stat_t"] = state_t;
+    //snprintf_P(temp, sizeof(temp), PSTR("%s/%s"), mqtt_base_.c_str(), entity);
+    snprintf_P(temp, sizeof(temp), PSTR("%s/%s_data"), mqtt_base_.c_str(), device_name);
+    doc["stat_t"] = temp;
+
+    // value template
+    snprintf_P(temp, sizeof(temp), PSTR("{{value_json.%s}}"), entity);
+    doc["val_tpl"] = temp;
 
     EMSESP::webSettingsService.read([&](WebSettings & settings) {
         if (settings.bool_format == BOOL_FORMAT_ONOFF) {
