@@ -124,6 +124,7 @@ class Boiler : public EMSdevice {
     uint16_t boilTemp_       __attribute__ ((aligned (4))) = EMS_VALUE_USHORT_NOTSET; // Boiler temperature
     uint16_t exhaustTemp_    __attribute__ ((aligned (4))) = EMS_VALUE_USHORT_NOTSET; // Exhaust temperature
     uint32_t burnStarts_     __attribute__ ((aligned (4))) = EMS_VALUE_ULONG_NOTSET;  // # burner restarts
+    uint8_t  burnStarts_raw  = EMS_VALUE_UINT_NOTSET;  // # burner restarts
     uint32_t burnWorkMin_    __attribute__ ((aligned (4))) = EMS_VALUE_ULONG_NOTSET;  // Total burner operating time
     uint32_t heatWorkMin_    __attribute__ ((aligned (4))) = EMS_VALUE_ULONG_NOTSET;  // Total heat operating time
     uint16_t switchTemp_     __attribute__ ((aligned (4))) = EMS_VALUE_USHORT_NOTSET; // Switch temperature

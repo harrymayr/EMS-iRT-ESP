@@ -461,9 +461,21 @@ uint16_t ICACHE_FLASH_ATTR EMSuart::transmit(uint8_t * buf, uint8_t len) {
 
 	if (tx_mode_ == EMS_TXMODE_IRT_ACTIVE_POLL) {
 		uint16_t status __attribute__ ((aligned (4)));
+
+		status = irtuart_check_tx(1);
+		// still busy transmitting
+        uint16_t         timeoutcnt  __attribute__ ((aligned (4))) = EMSUART_TX_TIMEOUT;
+        while (((status & 0xFF00) == 0x0100) && (--timeoutcnt > 0)) {
+			status = irtuart_check_tx(1);
+		    delayMicroseconds(EMSUART_TX_BUSY_WAIT); // burn CPU cycles...
+		}
+		if ((status & 0x300) == 0x0300) {
+			//return status;
+			// the transmission has failed, but we are ready to send a new packet
+		}
+
 		status = irtuart_send_tx_buffer(1, buf+4, len-4);
-        delayMicroseconds(EMSUART_TX_BIT_TIME * 5); // burn CPU cycles...
-		if ((status & 0xFF00) == 0x0200) 
+		if ((status & 0x300) == 0x0200) 
 			return status;
 		else
 			return EMS_TX_STATUS_OK;
@@ -547,7 +559,7 @@ uint16_t ICACHE_FLASH_ATTR EMSuart::irtuart_send_tx_buffer(uint8_t address, uint
 	status = irtuart_check_tx(1);
 	// if we are still processing or there is a finished buffer
 	// return status, only if empty add buffer
-	if ((len < 1) || (status >= 0x0100)) return status;
+	if ((len < 1) || ((status & 0x3FF) >= 0x0100)) return status;
 
 	// the irq will only pick-up a buffer if valid == 1
 	// we just checked it is  not, so no need to disable irq

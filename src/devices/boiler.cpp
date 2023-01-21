@@ -115,6 +115,8 @@ Boiler::Boiler(uint8_t device_type, int8_t device_id, uint8_t product_id, const 
             heatingActivated_ = 1;
             wWActivated_ = 1;
         }
+        write_command(0x05, 0, wWActivated_ ? 0x04 : 0x00, 0x05);
+
 #endif        
      }
     
@@ -1258,7 +1260,7 @@ void Boiler::process_IRTGetActBurnerPower(std::shared_ptr<const Telegram> telegr
 	 * ss - 0xA0 - if burner off
 	 * ss - 0x00 - 0xFF burner power: ss * 0.25 + 30 */
     changed_ |= telegram->read_value(curBurnPow_raw, 4);
-    if ((curBurnPow_raw==0xA0) && (heatingActive_==0))
+    if ((curBurnPow_raw==0xA0) && ((heatingActive_==0) || (heatingActive_ == EMS_VALUE_BOOL_NOTSET)))
         curBurnPow_ = 0;
     else
         curBurnPow_ = (curBurnPow_raw / 4) + 30;
@@ -1393,7 +1395,8 @@ void Boiler::process_IRTGetBurnerRuntime(std::shared_ptr<const Telegram> telegra
 }
 void Boiler::process_IRTGetBurnerStarts(std::shared_ptr<const Telegram> telegram)  // 0xAB
 {
-    changed_ |= telegram->read_value(burnStarts_, 4);
+    changed_ |= telegram->read_value(burnStarts_raw, 4);
+    burnStarts_ = burnStarts_raw;
 }
 
 void Boiler::process_IRTGetMinuteTimer(std::shared_ptr<const Telegram> telegram)  // 0xC9
@@ -1777,7 +1780,7 @@ void Boiler::process_UBAMaintenanceData(std::shared_ptr<const Telegram> telegram
 
 // Set the warm water temperature 0x33
 bool Boiler::set_warmwater_temp(const char * value, const int8_t id) {
-    int v = 0;
+    int v __attribute__ ((aligned (4))) = 0;
     if (!Helpers::value2number(value, v)) {
         LOG_WARNING(F("Set boiler warm water temperature: Invalid value"));
         return false;
@@ -1799,7 +1802,7 @@ bool Boiler::set_warmwater_temp(const char * value, const int8_t id) {
 
 // flow temp
 bool Boiler::set_flow_temp(const char * value, const int8_t id) {
-    int v = 0;
+    int v __attribute__ ((aligned (4))) = 0;
     if (!Helpers::value2number(value, v)) {
         LOG_WARNING(F("Set boiler flow temperature: Invalid value"));
         return false;
@@ -1836,7 +1839,7 @@ bool Boiler::set_heating_activated(const char * value, const int8_t id) {
         }
     else {
         heatingActivated_ = v ? 0x01 : 0;
-        write_command(0x07, 0, v ? 0x4D: 0, 0x07);
+        write_command(0x07, 0, v ? 0xFF: 0, 0x07);
         write_command(0x01, 0, v ? irt_convert_real_temp_to_raw(38): 0, 0x01);
     }
 #if defined(ESP8266)
@@ -1851,7 +1854,7 @@ bool Boiler::set_heating_activated(const char * value, const int8_t id) {
 
 // set heating maximum temperature
 bool Boiler::set_heating_temp(const char * value, const int8_t id) {
-    int v = 0;
+    int v __attribute__ ((aligned (4))) = 0;
     if (!Helpers::value2number(value, v)) {
         LOG_WARNING(F("Set boiler heating temperature: Invalid value"));
         return false;
@@ -1872,7 +1875,7 @@ bool Boiler::set_heating_temp(const char * value, const int8_t id) {
 
 // set min boiler output
 bool Boiler::set_min_power(const char * value, const int8_t id) {
-    int v = 0;
+    int v __attribute__ ((aligned (4))) = 0;
     if (!Helpers::value2number(value, v)) {
         LOG_WARNING(F("Set boiler min power: Invalid value"));
         return false;
@@ -1893,7 +1896,7 @@ bool Boiler::set_min_power(const char * value, const int8_t id) {
 
 // set max temp
 bool Boiler::set_max_power(const char * value, const int8_t id) {
-    int v = 0;
+    int v __attribute__ ((aligned (4))) = 0;
     if (!Helpers::value2number(value, v)) {
         LOG_WARNING(F("Set boiler max power: Invalid value"));
         return false;
@@ -1912,14 +1915,14 @@ bool Boiler::set_max_power(const char * value, const int8_t id) {
             write_command(EMS_TYPE_UBAParameters, 2, v, EMS_TYPE_UBAParameters);
         }
     else
-        write_command(0x07, 0, v, 0x07);
+        write_command(0x07, 0, (uint8_t)((v * 255) / 100), 0x07);
 
     return true;
 }
 
 // set min pump modulation
 bool Boiler::set_min_pump(const char * value, const int8_t id) {
-    int v = 0;
+    int v __attribute__ ((aligned (4))) = 0;
     if (!Helpers::value2number(value, v)) {
         LOG_WARNING(F("Set pump min: Invalid value"));
         return false;
@@ -1940,7 +1943,7 @@ bool Boiler::set_min_pump(const char * value, const int8_t id) {
 
 // set max pump modulation
 bool Boiler::set_max_pump(const char * value, const int8_t id) {
-    int v = 0;
+    int v __attribute__ ((aligned (4))) = 0;
     if (!Helpers::value2number(value, v)) {
         LOG_WARNING(F("Set pump max: Invalid value"));
         return false;
@@ -1961,7 +1964,7 @@ bool Boiler::set_max_pump(const char * value, const int8_t id) {
 
 // set boiler on hysteresis
 bool Boiler::set_hyst_on(const char * value, const int8_t id) {
-    int v = 0;
+    int v __attribute__ ((aligned (4))) = 0;
     if (!Helpers::value2number(value, v)) {
         LOG_WARNING(F("Set boiler hysteresis: Invalid value"));
         return false;
@@ -1982,7 +1985,7 @@ bool Boiler::set_hyst_on(const char * value, const int8_t id) {
 
 // set boiler off hysteresis
 bool Boiler::set_hyst_off(const char * value, const int8_t id) {
-    int v = 0;
+    int v __attribute__ ((aligned (4))) = 0;
     if (!Helpers::value2number(value, v)) {
         LOG_WARNING(F("Set boiler hysteresis: Invalid value"));
         return false;
@@ -2003,7 +2006,7 @@ bool Boiler::set_hyst_off(const char * value, const int8_t id) {
 
 // set min burner period
 bool Boiler::set_burn_period(const char * value, const int8_t id) {
-    int v = 0;
+    int v __attribute__ ((aligned (4))) = 0;
     if (!Helpers::value2number(value, v)) {
         LOG_WARNING(F("Set burner min. period: Invalid value"));
         return false;
@@ -2024,7 +2027,7 @@ bool Boiler::set_burn_period(const char * value, const int8_t id) {
 
 // set pump delay
 bool Boiler::set_pump_delay(const char * value, const int8_t id) {
-    int v = 0;
+    int v __attribute__ ((aligned (4))) = 0;
     if (!Helpers::value2number(value, v)) {
         LOG_WARNING(F("Set boiler pump delay: Invalid value"));
         return false;
@@ -2211,7 +2214,7 @@ bool Boiler::set_warmwater_circulation_pump(const char * value, const int8_t id)
 // Set the mode of circulation, 1x3min, ... 6x3min, continuos
 // true = on, false = off
 bool Boiler::set_warmwater_circulation_mode(const char * value, const int8_t id) {
-    // int v = 0;
+    // int v __attribute__ ((aligned (4))) = 0;
     uint8_t v;
     if (!Helpers::value2enum(value, v, {F("off"), F("1"), F("2"), F("3"), F("4"), F("5"), F("6"), F("continous")})) {
         // if (!Helpers::value2number(value, v)) {
@@ -2293,7 +2296,7 @@ bool Boiler::set_maintenance(const char * value, const int8_t id) {
             return true;
         }
 
-        int hrs;
+        int __attribute__ ((aligned (4))) hrs;
         if (Helpers::value2number(value, hrs)) {
             if (hrs > 99 && hrs < 25600) {
                 LOG_INFO(F("Setting maintenance time %d hours"), hrs);

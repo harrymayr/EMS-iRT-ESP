@@ -724,7 +724,6 @@ bool EMSESP::process_telegram(std::shared_ptr<const Telegram> telegram) {
     bool found       = false;
     bool knowndevice = false;
     for (const auto & emsdevice : emsdevices) {
-//    LOG_DEBUG(F("emsdevice 0x%02X - is_device_id 0x%02X"), emsdevice->device_type(), emsdevice->is_device_id(telegram->src));
         if (emsdevice) {
             if (emsdevice->is_device_id(telegram->src)) {
                 knowndevice = true;
@@ -991,7 +990,7 @@ void EMSESP::send_write_request(const uint16_t type_id, const uint8_t dest, cons
 void EMSESP::send_write_request(const uint16_t type_id, const uint8_t dest, const uint8_t offset, const uint8_t value, const uint16_t validate_typeid) {
     uint8_t message_data[1];
     message_data[0] = value;
-    EMSESP::send_write_request(type_id, dest, offset, message_data, 1, validate_typeid);
+    EMSESP::send_write_request(type_id, dest, offset, message_data, (uint8_t)1, validate_typeid);
 }
 
 // this is main entry point when data is received on the Rx line, via emsuart library
@@ -1037,7 +1036,6 @@ void EMSESP::incoming_telegram(uint8_t * data, const uint8_t length) {
             }
         } else if ((tx_state == Telegram::Operation::TX_READ) && (EMSESP::rxservice_.tx_mode() >= EMS_TXMODE_IRT_PASSIVE) && 
                       (first_value == 0x01)) {
-//            LOG_DEBUG(F("Test Tx read src: 0x%x, dest: 0x%x, is_last_tx: %d - %s"),src,dest,txservice_.is_last_tx(src, dest),Helpers::data_to_hex(data, length).c_str());
                 txservice_.increment_telegram_read_count();
                 txservice_.send_poll(); // close the bus
                 txservice_.reset_retry_count();
@@ -1070,7 +1068,6 @@ void EMSESP::incoming_telegram(uint8_t * data, const uint8_t length) {
         }
     }
     // check for iRT device
-//    LOG_DEBUG(F("tx_mode 0x%02X - value 0x%02X"),EMSESP::rxservice_.tx_mode(),first_value ^ 0x80 ^ rxservice_.ems_mask());
     if ((EMSESP::rxservice_.tx_mode() >= EMS_TXMODE_IRT_PASSIVE) && (first_value == 0x01)) {
         EMSbus::last_bus_activity(uuid::get_uptime()); // set the flag indication the EMS bus is active
     }
@@ -1105,18 +1102,20 @@ void EMSESP::incoming_telegram(uint8_t * data, const uint8_t length) {
           ((EMSESP::rxservice_.tx_mode() > EMS_TXMODE_IRT_PASSIVE) && (first_value == 0x01))) {
             txservice_.send();
         }
+        if (EMSESP::rxservice_.tx_mode() < EMS_TXMODE_IRT_PASSIVE)
         // send remote room temperature if active
-        Roomctrl::send(first_value ^ 0x80 ^ rxservice_.ems_mask());
+            Roomctrl::send(first_value ^ 0x80 ^ rxservice_.ems_mask());
         return;
     } else {
 #ifdef EMSESP_UART_DEBUG
         LOG_TRACE(F("[UART_DEBUG] Reply after %d ms: %s"), ::millis() - rx_time_, Helpers::data_to_hex(data, length).c_str());
 #endif
-        Roomctrl::check((data[1] ^ 0x80 ^ rxservice_.ems_mask()), data); // check if there is a message for the roomcontroller
 
         if ((EMSESP::rxservice_.tx_mode() >= EMS_TXMODE_IRT_PASSIVE) && (first_value == 0x01)) {
             EMSbus::last_bus_activity(uuid::get_uptime()); // set the flag indication the EMS bus is active
         }
+        else
+            Roomctrl::check((data[1] ^ 0x80 ^ rxservice_.ems_mask()), data); // check if there is a message for the roomcontroller
 
         rxservice_.add(data, length); // add to RxQueue
     }

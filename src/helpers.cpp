@@ -356,7 +356,7 @@ std::string Helpers::data_to_hex(const uint8_t * data, const uint8_t length) {
 
     std::string str(160, '\0');
     char        buffer[4];
-    char *      p = &str[0];
+    char *      p  __attribute__ ((aligned (4))) = &str[0];
     for (uint8_t i = 0; i < length; i++) {
         Helpers::hextoa(buffer, data[i]);
         *p++ = buffer[0];

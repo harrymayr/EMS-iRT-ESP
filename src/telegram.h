@@ -406,8 +406,6 @@ class TxService : public EMSbus {
 
     uint8_t tx_telegram_id_ = 0; // queue counter
 
-    void send_telegram(const QueuedTxTelegram & tx_telegram);
-    // void send_telegram(const uint8_t * data, const uint8_t length);
 };
 
 } // namespace emsesp

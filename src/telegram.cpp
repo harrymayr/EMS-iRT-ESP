@@ -228,15 +228,11 @@ void RxService::add(uint8_t * data, uint8_t length) {
         }
     }
     else {
-        /* the last byte should be the break (0x00). If it is not 0x00 leave it */
-        if ((length > 1) && (data[length -1]) == 0x00)
-            length--;
         if (ems_mask() == EMS_MASK_UNSET) {
             ems_mask(0x00);
             std::string version(5, '\0');
             snprintf_P(&version[0], version.capacity() + 1, PSTR("*iRT*"));
             EMSESP::add_device(0x08, 255,version, EMSdevice::Brand::BUDERUS); // UBA 4000/4001
-//            EMSESP::add_device(0x08, 211,version, EMSdevice::Brand::BOSCH); // Easy Control Adapter
         }
     }
 
@@ -502,137 +498,149 @@ void TxService::send() {
     delayed_send_ = 0;
 
     // if we're in read-only mode (tx_mode 0) forget the Tx call
-    if ((tx_mode() > 0) && (tx_mode() != EMS_TXMODE_IRT_PASSIVE)) {
-        send_telegram(tx_telegrams_.front());
+    if ((tx_mode() == 0) ||(tx_mode() == EMS_TXMODE_IRT_PASSIVE)) {
+        tx_telegrams_.pop_front(); // remove the telegram from the queue
     }
 
-    tx_telegrams_.pop_front(); // remove the telegram from the queue
-}
-
 // process a Tx telegram
-void TxService::send_telegram(const QueuedTxTelegram & tx_telegram) {
+
     static uint8_t telegram_raw[EMS_MAX_TELEGRAM_LENGTH];
 
     // build the header
-    auto telegram = tx_telegram.telegram_;
-
-    // src - set MSB if it's Junkers/HT3
-    uint8_t src = telegram->src;
-    if (ems_mask() != EMS_MASK_UNSET) {
-        src ^= ems_mask();
-    }
-    telegram_raw[0] = src;
-
-    // dest - for READ the MSB must be set
-    // fix the READ or WRITE depending on the operation
-    uint8_t dest = telegram->dest;
-
-    // check if we have to manipulate the id for thermostats > 0x18
-    dest = EMSESP::check_master_device(dest, telegram->type_id, false);
-
-    if ((telegram->operation == Telegram::Operation::TX_READ) && (EMSESP::txservice_.tx_mode() <= EMS_TXMODE_HW)){
-        dest |= 0x80; // read has 8th bit set for the destination
-    }
-    telegram_raw[1] = dest;
-
-    uint8_t message_p = 0;    // this is the position in the telegram where we want to put our message data
-    bool    copy_data = true; // true if we want to copy over the data message block to the end of the telegram header
-
-    if (telegram->type_id > 0xFF) {
-        // it's EMS 2.0/+
-        telegram_raw[2] = 0xFF; // fixed value indicating an extended message
-        telegram_raw[3] = telegram->offset;
-
-        // EMS+ has different format for read and write
-        if (telegram->operation == Telegram::Operation::TX_WRITE) {
-            // WRITE
-            telegram_raw[4] = (telegram->type_id >> 8) - 1; // type, 1st byte, high-byte, subtract 0x100
-            telegram_raw[5] = telegram->type_id & 0xFF;     // type, 2nd byte, low-byte
-            message_p       = 6;
-        } else {
-            // READ
-            telegram_raw[4] = telegram->message_data[0];    // #bytes to return, which we assume is the only byte in the message block
-            telegram_raw[5] = (telegram->type_id >> 8) - 1; // type, 1st byte, high-byte, subtract 0x100
-            telegram_raw[6] = telegram->type_id & 0xFF;     // type, 2nd byte, low-byte
-            message_p       = 7;
-            copy_data       = false; // there are no more data values after the type_id when reading on EMS+
-        }
-    } else {
-        // EMS 1.0
-        telegram_raw[2] = telegram->type_id;
-        telegram_raw[3] = telegram->offset;
-        message_p       = 4;
-    }
-
-    if (copy_data) {
-        if (telegram->message_length > EMS_MAX_TELEGRAM_MESSAGE_LENGTH) {
-            return; // too big
-        }
-
-        // add the data to send to to the end of the header
-        for (uint8_t i = 0; i < telegram->message_length; i++) {
-            telegram_raw[message_p++] = telegram->message_data[i];
-        }
-    }
-
-    uint8_t length = message_p;
-
-    telegram_last_ = std::make_shared<Telegram>(*telegram); // make a copy of the telegram
-
+    uint8_t length = 0;
     if (EMSESP::txservice_.tx_mode() <= EMS_TXMODE_HW) {
+        QueuedTxTelegram & tx_telegram = tx_telegrams_.front();
+        auto telegram = tx_telegram.telegram_;
+        // src - set MSB if it's Junkers/HT3
+        uint8_t src = telegram->src;
+        if (ems_mask() != EMS_MASK_UNSET){
+            src ^= ems_mask();
+        }
+        telegram_raw[0] = src;
+
+        // dest - for READ the MSB must be set
+        // fix the READ or WRITE depending on the operation
+        uint8_t dest = telegram->dest;
+
+        // check if we have to manipulate the id for thermostats > 0x18
+        dest = EMSESP::check_master_device(dest, telegram->type_id, false);
+
+        if (telegram->operation == Telegram::Operation::TX_READ){
+            dest |= 0x80; // read has 8th bit set for the destination
+        }
+        telegram_raw[1] = dest;
+
+        uint8_t message_p = 0;    // this is the position in the telegram where we want to put our message data
+        bool    copy_data = true; // true if we want to copy over the data message block to the end of the telegram header
+
+        if (telegram->type_id > 0xFF) {
+            // it's EMS 2.0/+
+            telegram_raw[2] = 0xFF; // fixed value indicating an extended message
+            telegram_raw[3] = telegram->offset;
+
+            // EMS+ has different format for read and write
+            if (telegram->operation == Telegram::Operation::TX_WRITE) {
+                // WRITE
+                telegram_raw[4] = (telegram->type_id >> 8) - 1; // type, 1st byte, high-byte, subtract 0x100
+                telegram_raw[5] = telegram->type_id & 0xFF;     // type, 2nd byte, low-byte
+                message_p       = 6;
+            } else {
+                // READ
+                telegram_raw[4] = telegram->message_data[0];    // #bytes to return, which we assume is the only byte in the message block
+                telegram_raw[5] = (telegram->type_id >> 8) - 1; // type, 1st byte, high-byte, subtract 0x100
+                telegram_raw[6] = telegram->type_id & 0xFF;     // type, 2nd byte, low-byte
+                message_p       = 7;
+                copy_data       = false; // there are no more data values after the type_id when reading on EMS+
+            }
+        } else {
+            // EMS 1.0
+            telegram_raw[2] = telegram->type_id;
+            telegram_raw[3] = telegram->offset;
+            message_p       = 4;
+        }
+
+        if (copy_data) {
+            if (telegram->message_length > EMS_MAX_TELEGRAM_MESSAGE_LENGTH) {
+                tx_telegrams_.pop_front(); // remove the telegram from the queue
+                return; // too big
+            }
+
+            // add the data to send to to the end of the header
+            for (uint8_t i = 0; i < telegram->message_length; i++) {
+                telegram_raw[message_p++] = telegram->message_data[i];
+            }
+        }
+
+        length = message_p;
+
+        telegram_last_ = std::make_shared<Telegram>(*telegram); // make a copy of the telegram
+
         telegram_raw[length] = calculate_crc(telegram_raw, length); // generate and append CRC to the end
 
         length++; // add one since we want to now include the CRC
+
+        LOG_DEBUG(F("Sending %s Tx [#%d], telegram: %s, length: %d, last telegram: %s"),
+                (telegram->operation == Telegram::Operation::TX_WRITE) ? F("write") : F("read"),
+                tx_telegram.id_,
+                Helpers::data_to_hex(telegram_raw, length).c_str(), length, EMSESP::pretty_telegram(telegram).c_str());
+
+        set_post_send_query(tx_telegram.validateid_);
+        tx_telegrams_.pop_front(); // remove the telegram from the queue
+        // send the telegram to the UART Tx
+        uint16_t status __attribute__ ((aligned (4))) = EMSuart::transmit(telegram_raw, length);
+        if (status != EMS_TX_STATUS_OK) {
+            LOG_ERROR(F("Failed to transmit Tx via UART. Status: 0x%x"), status);
+            increment_telegram_fail_count();     // another Tx fail
+            tx_state(Telegram::Operation::NONE); // nothing send, tx not in wait state
+            return;
+        }
+
+        tx_state(telegram->operation); // tx now in a wait state
     }
-    else{
-        telegram_raw[7] = calculate_irt_crc(telegram_raw+4,4);
+    else {
+        length = 4;
+        uint8_t message_p = 3;    // this is the position in the telegram where we want to put our message data
+        uint8_t count = 0;
+        while (!tx_telegrams_.empty() && count++ <5) {
+            QueuedTxTelegram & tx_telegram = tx_telegrams_.front();
+            auto telegram = tx_telegram.telegram_;
+            telegram_raw[0] = telegram->src;
+            telegram_raw[1] = telegram->dest;
+
+
+            telegram_raw[2] = telegram->type_id;
+            telegram_raw[3] = telegram->offset;
+
+            // add the data to send to to the end of the header
+            for (uint8_t i = 0; i < telegram->message_length; i++) {
+                telegram_raw[length++] = telegram->message_data[i];
+            }
+
+            telegram_raw[message_p+4] = calculate_irt_crc(telegram_raw+message_p+1,4);
+            message_p += telegram->message_length;
+
+            LOG_DEBUG(F("Sending %s Tx [#%d], telegram: %s, length: %d, last telegram: %s"),
+                    (telegram->operation == Telegram::Operation::TX_WRITE) ? F("write") : F("read"),
+                    tx_telegram.id_,
+                    Helpers::data_to_hex(telegram_raw, length).c_str(), length, EMSESP::pretty_telegram(telegram).c_str());
+            tx_telegrams_.pop_front(); // remove the telegram from the queue
+        }
+        // send the telegram to the UART Tx
+        uint16_t status __attribute__ ((aligned (4))) = EMSuart::transmit(telegram_raw, length);
+
+        if (EMSESP::txservice_.tx_mode() > EMS_TXMODE_HW)
+            increment_telegram_read_count();
+
+        if (status != EMS_TX_STATUS_OK) {
+            LOG_ERROR(F("Failed to transmit Tx via UART. Status: 0x%x"), status);
+            increment_telegram_fail_count();     // another Tx fail
+            tx_state(Telegram::Operation::NONE); // nothing send, tx not in wait state
+            return;
+        }
+
+        tx_state(Telegram::Operation::TX_READ); // tx now in a wait state
     }
-
-    LOG_DEBUG(F("Sending %s Tx [#%d], telegram: %s, length: %d, last telegram: %s"),
-              (telegram->operation == Telegram::Operation::TX_WRITE) ? F("write") : F("read"),
-              tx_telegram.id_,
-              Helpers::data_to_hex(telegram_raw, length).c_str(), length, EMSESP::pretty_telegram(telegram).c_str());
-
-    set_post_send_query(tx_telegram.validateid_);
-    // send the telegram to the UART Tx
-    uint16_t status __attribute__ ((aligned (4))) = EMSuart::transmit(telegram_raw, length);
-
-    if (EMSESP::txservice_.tx_mode() > EMS_TXMODE_HW)
-        increment_telegram_read_count();
-
-    if (status != EMS_TX_STATUS_OK) {
-//        LOG_ERROR(F("Failed to transmit Tx via UART. Status: 0x%x"), status);
-        increment_telegram_fail_count();     // another Tx fail
-        tx_state(Telegram::Operation::NONE); // nothing send, tx not in wait state
-        return;
-    }
-
-    tx_state(telegram->operation); // tx now in a wait state
 }
-
-/*
-// send an array of bytes as a telegram
-// we need to calculate the CRC and append it before sending
-// this function is fire-and-forget. there are no checks or post-send validations
-void TxService::send_telegram(const uint8_t * data, const uint8_t length) {
-    uint8_t telegram_raw[EMS_MAX_TELEGRAM_LENGTH];
-
-    for (uint8_t i = 0; i < length; i++) {
-        telegram_raw[i] = data[i];
-    }
-    telegram_raw[length] = calculate_crc(telegram_raw, length); // apppend CRC
-
-    tx_state(Telegram::Operation::NONE); // no post validation needed
-
-    // send the telegram to the UART Tx
-    uint16_t status = EMSuart::transmit(telegram_raw, length);
-
-    if (status == EMS_TX_STATUS_ERR) {
-        LOG_ERROR(F("Failed to transmit Tx via UART."));
-        increment_telegram_fail_count(); // another Tx fail
-    }
-}
-*/
 
 // builds a Tx telegram and adds to queue
 // given some details like the destination, type, offset and message block
@@ -771,19 +779,18 @@ void TxService::write_request(const uint16_t type_id, const uint8_t dest, const 
     if ((EMSbus::tx_mode() == EMS_TXMODE_IRT_PASSIVE) || !bus_connected()) {
         return;
     }
-    LOG_ERROR(F("Tx write request to device 0x%02X for type ID 0x%02X"), dest, type_id);
+    LOG_DEBUG(F("Tx write request to device 0x%02X for type ID 0x%02X, messagedata: 0x%02X"), dest, type_id,message_data[0]);
 
     if (EMSbus::tx_mode() <= EMS_TXMODE_HW) {
         add(Telegram::Operation::TX_WRITE, dest, type_id, offset, message_data, message_length, validate_typeid, true);
     }
-    else if ((message_length == 1) && ((message_data[0] & 0x80) == 0)){
+    else if ((message_length == 1) && ((type_id & 0x0080) == 0)){
         uint8_t temp[4] = {0}; // 
         temp[0] = (uint8_t)type_id;
         temp[1] = message_data[0];
         temp[2] = 0;
         temp[3] = calculate_irt_crc(temp,4);
-        add(Telegram::Operation::TX_WRITE, 0x08, type_id, 0, temp, 4, 0, true);
-        add(Telegram::Operation::TX_WRITE, 0x08, type_id, 0, temp, 4, 0, true);
+        add(Telegram::Operation::TX_RAW, 0x08, type_id, 0, temp, 4, type_id);
     }
 }
 

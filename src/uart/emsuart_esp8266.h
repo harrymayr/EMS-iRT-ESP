@@ -32,8 +32,8 @@
 #define IRTUART_BAUD 4800   // uart baud rate for the EMS circuit
 
 #define EMS_MAXBUFFERS 3     // buffers for circular filling to avoid collisions
-#define EMS_MAXBUFFERSIZE 33 // max size of the buffer. EMS packets are max 32 bytes, plus extra for BRK
-#define IRT_MAXTXBUFFERSIZE (EMS_MAXBUFFERSIZE / 2)		// max size of tx buffer
+#define EMS_MAXBUFFERSIZE 65 // max size of the buffer. EMS packets are max 32 bytes, plus extra for BRK
+#define IRT_MAXTXBUFFERSIZE (EMS_MAXBUFFERSIZE)		// max size of tx buffer
 
 #define EMSUART_recvTaskPrio 2     // 0, 1 or 2. 0 being the lowest
 #define EMSUART_recvTaskQueueLen 3 // number of queued Rx triggers
