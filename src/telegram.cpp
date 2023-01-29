@@ -790,7 +790,7 @@ void TxService::write_request(const uint16_t type_id, const uint8_t dest, const 
         temp[1] = message_data[0];
         temp[2] = 0;
         temp[3] = calculate_irt_crc(temp,4);
-        add(Telegram::Operation::TX_RAW, 0x08, type_id, 0, temp, 4, type_id);
+        add(Telegram::Operation::TX_RAW, 0x08, type_id, 0, temp, 4, type_id, true);
     }
 }
 

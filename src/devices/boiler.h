@@ -55,6 +55,7 @@ class Boiler : public EMSdevice {
 
     void register_mqtt_ha_config();
     void register_mqtt_ha_config_ww();
+    void register_mqtt_ha_config_dbg();
     void check_active(const bool force = false);
     bool export_values_main(JsonObject & doc, const bool textformat = false);
     bool export_values_ww(JsonObject & doc, const bool textformat = false);
@@ -63,7 +64,8 @@ class Boiler : public EMSdevice {
     bool changed_           = false;
     uint8_t mqtt_ha_config_    = 0; // HA MQTT Discovery
     uint8_t mqtt_ha_config_ww_ = 0; // HA MQTT Discovery
-
+    uint8_t mqtt_ha_config_dbg_= 0; // HA MQTT Discovery
+    
     static constexpr uint8_t  EMS_TYPE_UBAParameterWW     = 0x33;
     static constexpr uint8_t  EMS_TYPE_UBAFunctionTest    = 0x1D;
     static constexpr uint8_t  EMS_TYPE_UBAFlags           = 0x35;
@@ -77,7 +79,7 @@ class Boiler : public EMSdevice {
     static constexpr uint8_t EMS_BOILER_SELFLOWTEMP_HEATING = 20; // was originally 70, changed to 30 for issue #193, then to 20 with issue #344
     
     // iRT specific?
-    uint8_t minuteTimer_        = EMS_VALUE_UINT_NOTSET; // 5 minute timer
+    uint8_t periodTimer_        = EMS_VALUE_UINT_NOTSET; // 5 minute timer
     // UBAParameterWW
     uint8_t wWActivated_        = 1; // Warm Water activated
     uint8_t wWActivated_raw     = 1; // Warm Water activated
@@ -94,9 +96,11 @@ class Boiler : public EMSdevice {
 
     // UBAMonitorFast - 0x18 on EMS1
     uint16_t curFlowTemp_       __attribute__ ((aligned (4))) = EMS_VALUE_USHORT_NOTSET; // Current flow temperature
+    uint16_t fineFlowTemp_      __attribute__ ((aligned (4))) = EMS_VALUE_USHORT_NOTSET; // Current flow temperature
     uint16_t wWStorageTemp1_    __attribute__ ((aligned (4))) = EMS_VALUE_USHORT_NOTSET; // warm water storage temp 1
     uint16_t wWStorageTemp2_    __attribute__ ((aligned (4))) = EMS_VALUE_USHORT_NOTSET; // warm water storage temp 2
     uint16_t retTemp_           __attribute__ ((aligned (4))) = EMS_VALUE_USHORT_NOTSET; // Return temperature
+    uint16_t fineRetTemp_       __attribute__ ((aligned (4))) = EMS_VALUE_USHORT_NOTSET; // Return temperature
     uint16_t flameCurr_         __attribute__ ((aligned (4))) = EMS_VALUE_USHORT_NOTSET; // Flame current in micro amps
     uint16_t serviceCodeNumber_ __attribute__ ((aligned (4))) = EMS_VALUE_USHORT_NOTSET; // error/service code
     uint32_t lastCodeDate_      __attribute__ ((aligned (4))) = 0;
@@ -104,6 +108,10 @@ class Boiler : public EMSdevice {
     char     lastCode_[30]      = {'\0'};
     uint8_t  selFlowTemp_       = EMS_VALUE_UINT_NOTSET;   // Selected flow temperature
     uint8_t  curFlowTemp_raw    = EMS_VALUE_UINT_NOTSET;   // Current flow temperature
+    uint8_t  fineFlowTemp1_raw  = EMS_VALUE_UINT_NOTSET;   // Current flow temperature
+    uint8_t  fineFlowTemp2_raw  = EMS_VALUE_UINT_NOTSET;   // Current flow temperature
+    uint8_t  fineRetTemp1_raw   = EMS_VALUE_UINT_NOTSET;   // Current return temperature
+    uint8_t  fineRetTemp2_raw   = EMS_VALUE_UINT_NOTSET;   // Current return temperature
     uint8_t  retTemp_raw        = EMS_VALUE_UINT_NOTSET;   // Return temperature
     uint8_t  burnGas_           = EMS_VALUE_BOOL_NOTSET;   // Gas on/off
     uint8_t  fanWork_           = EMS_VALUE_BOOL_NOTSET;   // Fan on/off
@@ -115,19 +123,29 @@ class Boiler : public EMSdevice {
     uint8_t  selBurnPow_        = EMS_VALUE_UINT_NOTSET;   // Burner max power %
     uint8_t  curBurnPow_        = EMS_VALUE_UINT_NOTSET;   // Burner current power %
     uint8_t  curBurnPow_raw     = EMS_VALUE_UINT_NOTSET;   // Burner current power %
+    uint8_t  curBurnPow_2_      = EMS_VALUE_UINT_NOTSET;   // Burner current power %
+    uint8_t  curBurnPow_2_raw   = EMS_VALUE_UINT_NOTSET;   // Burner current power %
     uint8_t  sysPress_          = EMS_VALUE_UINT_NOTSET;   // System pressure
     uint8_t  serviceCodeNumber_raw = EMS_VALUE_UINT_NOTSET; // error/service code
     uint8_t  boilerState_       = EMS_VALUE_UINT_NOTSET;   // Boiler state flag
+    uint8_t  command91_raw      = EMS_VALUE_UINT_NOTSET;   // Debug-value
+    uint8_t  command95_raw      = EMS_VALUE_UINT_NOTSET;   // Debug-value
+    uint8_t  command9B_raw      = EMS_VALUE_UINT_NOTSET;   // Debug-value
+    uint8_t  command9C_raw      = EMS_VALUE_UINT_NOTSET;   // Debug-value
+    uint8_t  command9E_raw      = EMS_VALUE_UINT_NOTSET;   // Debug-value
+    uint8_t  commandA1_raw      = EMS_VALUE_UINT_NOTSET;   // Debug-value
+    uint8_t  commandA2_raw      = EMS_VALUE_UINT_NOTSET;   // Debug-value
 
     // UBAMonitorSlow - 0x19 on EMS1
     int16_t  outdoorTemp_    __attribute__ ((aligned (4))) = EMS_VALUE_SHORT_NOTSET;  // Outside temperature
     uint16_t boilTemp_       __attribute__ ((aligned (4))) = EMS_VALUE_USHORT_NOTSET; // Boiler temperature
     uint16_t exhaustTemp_    __attribute__ ((aligned (4))) = EMS_VALUE_USHORT_NOTSET; // Exhaust temperature
     uint32_t burnStarts_     __attribute__ ((aligned (4))) = EMS_VALUE_ULONG_NOTSET;  // # burner restarts
-    uint8_t  burnStarts_raw  = EMS_VALUE_UINT_NOTSET;  // # burner restarts
     uint32_t burnWorkMin_    __attribute__ ((aligned (4))) = EMS_VALUE_ULONG_NOTSET;  // Total burner operating time
     uint32_t heatWorkMin_    __attribute__ ((aligned (4))) = EMS_VALUE_ULONG_NOTSET;  // Total heat operating time
     uint16_t switchTemp_     __attribute__ ((aligned (4))) = EMS_VALUE_USHORT_NOTSET; // Switch temperature
+    uint8_t  boilTemp_raw    = EMS_VALUE_UINT_NOTSET;  // Boiler temperature
+    uint8_t  burnStarts_raw  = EMS_VALUE_UINT_NOTSET;  // # burner restarts
     uint8_t  outdoorTemp_raw = EMS_VALUE_UINT_NOTSET;   // Outside temperature
     uint8_t  heatingPumpMod_ = EMS_VALUE_UINT_NOTSET;   // Heating pump modulation %
     uint8_t  burnWorkMin_raw = EMS_VALUE_UINT_NOTSET;   // Total burner operating time
@@ -139,6 +157,7 @@ class Boiler : public EMSdevice {
     uint32_t wWStarts_       __attribute__ ((aligned (4))) = EMS_VALUE_ULONG_NOTSET;  // Warm Water # starts
     uint32_t wWWorkM_        __attribute__ ((aligned (4))) = EMS_VALUE_ULONG_NOTSET;  // Warm Water # minutes
     uint8_t  wWCurTemp_raw   = EMS_VALUE_UINT_NOTSET;   // Warm Water current temperature
+    uint8_t  wWCurTemp2_raw  = EMS_VALUE_UINT_NOTSET;   // Warm Water current temperature storage
     uint8_t  wWOneTime_      = EMS_VALUE_BOOL_NOTSET;   // Warm Water one time function on/off
     uint8_t  wWDisinfecting_ = EMS_VALUE_BOOL_NOTSET;   // Warm Water disinfection on/off
     uint8_t  wWCharging_     = EMS_VALUE_BOOL_NOTSET;   // Warm Water charging on/off
@@ -177,6 +196,9 @@ class Boiler : public EMSdevice {
     uint8_t tapwaterActive_  = EMS_VALUE_BOOL_NOTSET; // Hot tap water is on/off
     uint8_t heatingActive_   = EMS_VALUE_BOOL_NOTSET; // Central heating is on/off
     uint8_t heatingPump2Mod_ = EMS_VALUE_UINT_NOTSET; // heating pump 2 modulation from 0xE3 (heating pumps)
+    uint16_t debugvalues[128] = {EMS_VALUE_USHORT_NOTSET};
+    uint16_t debugtemp[128]   = {EMS_VALUE_USHORT_NOTSET};
+    uint16_t debugpercent[128]= {EMS_VALUE_USHORT_NOTSET};
 
     // UBAInformation
     uint32_t upTimeControl_             __attribute__ ((aligned (4))) = EMS_VALUE_ULONG_NOTSET; // Operating time control
@@ -239,6 +261,8 @@ class Boiler : public EMSdevice {
     void process_IRTGetActBurnerPower(std::shared_ptr<const Telegram> telegram);  // 0x83
     void process_IRTGetMaxBurnerPower(std::shared_ptr<const Telegram> telegram);  // 0x86
     void process_IRTGetOutdoorTemp(std::shared_ptr<const Telegram> telegram);  // 0x8A
+    void process_IRTGetWwTemp2(std::shared_ptr<const Telegram> telegram);  // 0x8B
+    void process_IRTGetBoilTemp(std::shared_ptr<const Telegram> telegram);  // 0x8C
     void process_IRTGetMaxFlowTemp(std::shared_ptr<const Telegram> telegram);  // 0x90
     void process_IRTGetPumpStatus(std::shared_ptr<const Telegram> telegram);  // 0x93
     void process_IRTGetDisplayCode(std::shared_ptr<const Telegram> telegram);  // 0xA3
@@ -249,8 +273,17 @@ class Boiler : public EMSdevice {
     void process_IRTGetBurnerStarts(std::shared_ptr<const Telegram> telegram);  // 0xAB
     void process_IRTGetMaxBurnerPowerSetting(std::shared_ptr<const Telegram> telegram);  // 0xDE
     void process_IRTHandlerUnknownFunktion(std::shared_ptr<const Telegram> telegram);  // unknown funktions
-    void process_IRTGetMinuteTimer(std::shared_ptr<const Telegram> telegram);  // 0xC9
-    
+    void process_IRTGetPeriodTimer(std::shared_ptr<const Telegram> telegram);  // 0xC9
+    void process_IRTCommand91(std::shared_ptr<const Telegram> telegram);  // 0x91
+    void process_IRTGetActBurnerPower_2(std::shared_ptr<const Telegram> telegram);  // 0x95
+    void process_IRTCommand9B(std::shared_ptr<const Telegram> telegram);  // 0x9B
+    void process_IRTCommand9C(std::shared_ptr<const Telegram> telegram);  // 0x9C
+    void process_IRTFineFlow1(std::shared_ptr<const Telegram> telegram);  // 0x9D
+    void process_IRTFineFlow2(std::shared_ptr<const Telegram> telegram);  // 0x9E
+    void process_IRTFineRet1(std::shared_ptr<const Telegram> telegram);  // 0x9F
+    void process_IRTFineRet2(std::shared_ptr<const Telegram> telegram);  // 0xA0
+    void process_IRTCommandA1(std::shared_ptr<const Telegram> telegram);  // 0xA1
+    void process_IRTCommandA2(std::shared_ptr<const Telegram> telegram);  // 0xA2
     
     // commands - none of these use the additional id parameter
     bool set_warmwater_mode(const char * value, const int8_t id);

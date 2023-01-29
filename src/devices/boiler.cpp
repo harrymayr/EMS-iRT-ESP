@@ -31,8 +31,13 @@ Boiler::Boiler(uint8_t device_type, int8_t device_id, uint8_t product_id, const 
     if (device_id != EMSdevice::EMS_DEVICE_ID_BOILER) {
         return;
     }
+    for (uint8_t i = 0; i < 128; i++) {
+        debugvalues[i] = EMS_VALUE_USHORT_NOTSET;
+        debugtemp[i] = EMS_VALUE_USHORT_NOTSET;
+        debugpercent[i] = EMS_VALUE_USHORT_NOTSET;
+    }
 
-    reserve_mem(20); // reserve some space for the telegram registries, to avoid memory fragmentation
+    reserve_mem(60); // reserve some space for the telegram registries, to avoid memory fragmentation
 
     LOG_DEBUG(F("Adding new Boiler with device ID 0x%02X"), device_id);
 
@@ -84,26 +89,75 @@ Boiler::Boiler(uint8_t device_type, int8_t device_id, uint8_t product_id, const 
         register_telegram_type(0x17, F("IRTHandlerUnknownFunktion"), false, [&](std::shared_ptr<const Telegram> t) { process_IRTHandlerUnknownFunktion(t); });
         register_telegram_type(0x73, F("IRTHandlerUnknownFunktion"), false, [&](std::shared_ptr<const Telegram> t) { process_IRTHandlerUnknownFunktion(t); });
         register_telegram_type(0x78, F("IRTHandlerUnknownFunktion"), false, [&](std::shared_ptr<const Telegram> t) { process_IRTHandlerUnknownFunktion(t); });
+//        register_telegram_type(0x80, F("IRTHandlerUnknownFunktion"), true, [&](std::shared_ptr<const Telegram> t) { process_IRTHandlerUnknownFunktion(t); });
         register_telegram_type(0x81, F("IRTGetMaxWarmWater"), true, [&](std::shared_ptr<const Telegram> t) { process_IRTGetMaxWarmWater(t); });
         register_telegram_type(0x82, F("IRTGetBoilerFlags"), false, [&](std::shared_ptr<const Telegram> t) { process_IRTGetBoilerFlags(t); }, true);
-        register_telegram_type(0x83, F("IRTGetActBurnerPower"), true, [&](std::shared_ptr<const Telegram> t) { process_IRTGetActBurnerPower(t); }, true);
-        register_telegram_type(0x84, F("IRTHandlerUnknownFunktion"), false, [&](std::shared_ptr<const Telegram> t) { process_IRTHandlerUnknownFunktion(t); });
-        register_telegram_type(0x85, F("IRTHandlerUnknownFunktion"), false, [&](std::shared_ptr<const Telegram> t) { process_IRTHandlerUnknownFunktion(t); });
+        register_telegram_type(0x83, F("IRTGetActBurnerPower"), false, [&](std::shared_ptr<const Telegram> t) { process_IRTGetActBurnerPower(t); }, true);
+//        register_telegram_type(0x84, F("IRTHandlerUnknownFunktion"), true, [&](std::shared_ptr<const Telegram> t) { process_IRTHandlerUnknownFunktion(t); }, true);
+//        register_telegram_type(0x85, F("IRTHandlerUnknownFunktion"), true, [&](std::shared_ptr<const Telegram> t) { process_IRTHandlerUnknownFunktion(t); }, true);
         register_telegram_type(0x86, F("IRTGetMaxBurnerPower"), true, [&](std::shared_ptr<const Telegram> t) { process_IRTGetMaxBurnerPower(t); });
-        register_telegram_type(0x8A, F("IRTGetOutdoorTemp"), true, [&](std::shared_ptr<const Telegram> t) { process_IRTGetOutdoorTemp(t); }, true);
+//        register_telegram_type(0x87, F("IRTHandlerUnknownFunktion"), true, [&](std::shared_ptr<const Telegram> t) { process_IRTHandlerUnknownFunktion(t); });
+//        register_telegram_type(0x88, F("IRTHandlerUnknownFunktion"), true, [&](std::shared_ptr<const Telegram> t) { process_IRTHandlerUnknownFunktion(t); });
+//        register_telegram_type(0x89, F("IRTHandlerUnknownFunktion"), true, [&](std::shared_ptr<const Telegram> t) { process_IRTHandlerUnknownFunktion(t); }, true);
+        register_telegram_type(0x8A, F("IRTGetOutdoorTemp"), false, [&](std::shared_ptr<const Telegram> t) { process_IRTGetOutdoorTemp(t); }, true);
+        register_telegram_type(0x8B, F("IRTGetWwTemp2"), false, [&](std::shared_ptr<const Telegram> t) { process_IRTGetWwTemp2(t); }, true);
+        register_telegram_type(0x8C, F("IRTGetBoilTemp"), false, [&](std::shared_ptr<const Telegram> t) { process_IRTGetBoilTemp(t); }, true);
+//        register_telegram_type(0x8D, F("IRTHandlerUnknownFunktion"), true, [&](std::shared_ptr<const Telegram> t) { process_IRTHandlerUnknownFunktion(t); });
+//        register_telegram_type(0x8E, F("IRTHandlerUnknownFunktion"), true, [&](std::shared_ptr<const Telegram> t) { process_IRTHandlerUnknownFunktion(t); });
+//        register_telegram_type(0x8F, F("IRTHandlerUnknownFunktion"), true, [&](std::shared_ptr<const Telegram> t) { process_IRTHandlerUnknownFunktion(t); });
         register_telegram_type(0x90, F("IRTGetMaxFlowTemp"), true, [&](std::shared_ptr<const Telegram> t) { process_IRTGetMaxFlowTemp(t); });
-        register_telegram_type(0x93, F("IRTGetPumpStatus"), true, [&](std::shared_ptr<const Telegram> t) { process_IRTGetPumpStatus(t); });
+        register_telegram_type(0x91, F("IRTCommand91"), false, [&](std::shared_ptr<const Telegram> t) { process_IRTCommand91(t); }, true);
+//        register_telegram_type(0x92, F("IRTHandlerUnknownFunktion"), true, [&](std::shared_ptr<const Telegram> t) { process_IRTHandlerUnknownFunktion(t); });
+        register_telegram_type(0x93, F("IRTGetPumpStatus"), true, [&](std::shared_ptr<const Telegram> t) { process_IRTGetPumpStatus(t); });         
+        register_telegram_type(0x94, F("IRTHandlerUnknownFunktion"), true, [&](std::shared_ptr<const Telegram> t) { process_IRTHandlerUnknownFunktion(t); });
+        register_telegram_type(0x95, F("IRTGetActBurnerPower_2"), false, [&](std::shared_ptr<const Telegram> t) { process_IRTGetActBurnerPower_2(t); }, true);
+        register_telegram_type(0x96, F("IRTHandlerUnknownFunktion"), false, [&](std::shared_ptr<const Telegram> t) { process_IRTHandlerUnknownFunktion(t); }, true);
+        register_telegram_type(0x97, F("IRTHandlerUnknownFunktion"), false, [&](std::shared_ptr<const Telegram> t) { process_IRTHandlerUnknownFunktion(t); }, true);
+        register_telegram_type(0x98, F("IRTHandlerUnknownFunktion"), false, [&](std::shared_ptr<const Telegram> t) { process_IRTHandlerUnknownFunktion(t); }, true);
+//        register_telegram_type(0x99, F("IRTHandlerUnknownFunktion"), true, [&](std::shared_ptr<const Telegram> t) { process_IRTHandlerUnknownFunktion(t); });
+//        register_telegram_type(0x9A, F("IRTHandlerUnknownFunktion"), true, [&](std::shared_ptr<const Telegram> t) { process_IRTHandlerUnknownFunktion(t); });
+        register_telegram_type(0x9B, F("IRTCommand9B"), false, [&](std::shared_ptr<const Telegram> t) { process_IRTCommand9B(t); }, true);
+        register_telegram_type(0x9C, F("IRTCommand9C"), false, [&](std::shared_ptr<const Telegram> t) { process_IRTCommand9C(t); }, true);
+        register_telegram_type(0x9D, F("IRTFineFlow1"), false, [&](std::shared_ptr<const Telegram> t) { process_IRTFineFlow1(t); }, true);
+        register_telegram_type(0x9E, F("IRTFineFlow2"), false, [&](std::shared_ptr<const Telegram> t) { process_IRTFineFlow2(t); }, true);
+        register_telegram_type(0x9F, F("IRTFineRet1"), false, [&](std::shared_ptr<const Telegram> t) { process_IRTFineRet1(t); }, true);
+        register_telegram_type(0xA0, F("IRTFineRet2"), false, [&](std::shared_ptr<const Telegram> t) { process_IRTFineRet2(t); }, true);
+        register_telegram_type(0xA1, F("IRTCommandA1"), false, [&](std::shared_ptr<const Telegram> t) { process_IRTCommandA1(t); },true);
+        register_telegram_type(0xA2, F("IRTCommandA2"), false, [&](std::shared_ptr<const Telegram> t) { process_IRTCommandA2(t); },true);
         register_telegram_type(0xA3, F("IRTGetDisplayCode"), false, [&](std::shared_ptr<const Telegram> t) { process_IRTGetDisplayCode(t); },true);
         register_telegram_type(0xA4, F("IRTGetFlowTemp"), false, [&](std::shared_ptr<const Telegram> t) { process_IRTGetFlowTemp(t); },true);
+        register_telegram_type(0xA5, F("IRTHandlerUnknownFunktion"), false, [&](std::shared_ptr<const Telegram> t) { process_IRTHandlerUnknownFunktion(t); },true);
         register_telegram_type(0xA6, F("IRTGetRetTemp"), false, [&](std::shared_ptr<const Telegram> t) { process_IRTGetRetTemp(t); },true);
-        register_telegram_type(0xA8, F("IRTGetWwTemp"), true, [&](std::shared_ptr<const Telegram> t) { process_IRTGetWwTemp(t); });
+        register_telegram_type(0xA7, F("IRTHandlerUnknownFunktion"), false, [&](std::shared_ptr<const Telegram> t) { process_IRTHandlerUnknownFunktion(t); },true);
+        register_telegram_type(0xA8, F("IRTGetWwTemp"), false, [&](std::shared_ptr<const Telegram> t) { process_IRTGetWwTemp(t); }, true);
+        register_telegram_type(0xA9, F("IRTHandlerUnknownFunktion"), false, [&](std::shared_ptr<const Telegram> t) { process_IRTHandlerUnknownFunktion(t); }, true);
         register_telegram_type(0xAA, F("IRTGetBurnerRuntime"), true, [&](std::shared_ptr<const Telegram> t) { process_IRTGetBurnerRuntime(t); });
         register_telegram_type(0xAB, F("IRTGetBurnerStarts"), true, [&](std::shared_ptr<const Telegram> t) { process_IRTGetBurnerStarts(t); });
-        register_telegram_type(0xC9, F("IRTGetMinuteTimer"), true, [&](std::shared_ptr<const Telegram> t) { process_IRTGetMinuteTimer(t); }, true);
+        register_telegram_type(0xAC, F("IRTHandlerUnknownFunktion"), true, [&](std::shared_ptr<const Telegram> t) { process_IRTHandlerUnknownFunktion(t); });
+        register_telegram_type(0xAD, F("IRTHandlerUnknownFunktion"), true, [&](std::shared_ptr<const Telegram> t) { process_IRTHandlerUnknownFunktion(t); });
+        register_telegram_type(0xAE, F("IRTHandlerUnknownFunktion"), true, [&](std::shared_ptr<const Telegram> t) { process_IRTHandlerUnknownFunktion(t); });
+        register_telegram_type(0xAF, F("IRTHandlerUnknownFunktion"), true, [&](std::shared_ptr<const Telegram> t) { process_IRTHandlerUnknownFunktion(t); });
+/*         register_telegram_type(0xB0, F("IRTHandlerUnknownFunktion"), true, [&](std::shared_ptr<const Telegram> t) { process_IRTHandlerUnknownFunktion(t); });
+        register_telegram_type(0xB1, F("IRTHandlerUnknownFunktion"), true, [&](std::shared_ptr<const Telegram> t) { process_IRTHandlerUnknownFunktion(t); });
+        register_telegram_type(0xB2, F("IRTHandlerUnknownFunktion"), true, [&](std::shared_ptr<const Telegram> t) { process_IRTHandlerUnknownFunktion(t); });
+        register_telegram_type(0xB3, F("IRTHandlerUnknownFunktion"), true, [&](std::shared_ptr<const Telegram> t) { process_IRTHandlerUnknownFunktion(t); });
+        register_telegram_type(0xB4, F("IRTHandlerUnknownFunktion"), true, [&](std::shared_ptr<const Telegram> t) { process_IRTHandlerUnknownFunktion(t); });
+        register_telegram_type(0xB5, F("IRTHandlerUnknownFunktion"), true, [&](std::shared_ptr<const Telegram> t) { process_IRTHandlerUnknownFunktion(t); });
+        register_telegram_type(0xB6, F("IRTHandlerUnknownFunktion"), true, [&](std::shared_ptr<const Telegram> t) { process_IRTHandlerUnknownFunktion(t); });
+        register_telegram_type(0xB7, F("IRTHandlerUnknownFunktion"), true, [&](std::shared_ptr<const Telegram> t) { process_IRTHandlerUnknownFunktion(t); });
+        register_telegram_type(0xB8, F("IRTHandlerUnknownFunktion"), true, [&](std::shared_ptr<const Telegram> t) { process_IRTHandlerUnknownFunktion(t); });
+        register_telegram_type(0xB9, F("IRTHandlerUnknownFunktion"), true, [&](std::shared_ptr<const Telegram> t) { process_IRTHandlerUnknownFunktion(t); });
+        register_telegram_type(0xBA, F("IRTHandlerUnknownFunktion"), true, [&](std::shared_ptr<const Telegram> t) { process_IRTHandlerUnknownFunktion(t); });
+        register_telegram_type(0xBB, F("IRTHandlerUnknownFunktion"), true, [&](std::shared_ptr<const Telegram> t) { process_IRTHandlerUnknownFunktion(t); });
+        register_telegram_type(0xBC, F("IRTHandlerUnknownFunktion"), true, [&](std::shared_ptr<const Telegram> t) { process_IRTHandlerUnknownFunktion(t); });
+        register_telegram_type(0xBD, F("IRTHandlerUnknownFunktion"), true, [&](std::shared_ptr<const Telegram> t) { process_IRTHandlerUnknownFunktion(t); });
+        register_telegram_type(0xBE, F("IRTHandlerUnknownFunktion"), true, [&](std::shared_ptr<const Telegram> t) { process_IRTHandlerUnknownFunktion(t); });
+        register_telegram_type(0xBF, F("IRTHandlerUnknownFunktion"), true, [&](std::shared_ptr<const Telegram> t) { process_IRTHandlerUnknownFunktion(t); });
+ */        register_telegram_type(0xC9, F("IRTGetPeriodTimer"), false, [&](std::shared_ptr<const Telegram> t) { process_IRTGetPeriodTimer(t); }, true);
         register_telegram_type(0xDE, F("IRTGetMaxBurnerPowerSetting"), true, [&](std::shared_ptr<const Telegram> t) { process_IRTGetMaxBurnerPowerSetting(t); });
-        register_telegram_type(0xE8, F("IRTHandlerUnknownFunktion"), false, [&](std::shared_ptr<const Telegram> t) { process_IRTHandlerUnknownFunktion(t); });
-        register_telegram_type(0xED, F("IRTHandlerUnknownFunktion"), false, [&](std::shared_ptr<const Telegram> t) { process_IRTHandlerUnknownFunktion(t); });
-        register_telegram_type(0xF0, F("IRTHandlerUnknownFunktion"), false, [&](std::shared_ptr<const Telegram> t) { process_IRTHandlerUnknownFunktion(t); });
+ //       register_telegram_type(0xE8, F("IRTHandlerUnknownFunktion"), false, [&](std::shared_ptr<const Telegram> t) { process_IRTHandlerUnknownFunktion(t); });
+ //       register_telegram_type(0xED, F("IRTHandlerUnknownFunktion"), false, [&](std::shared_ptr<const Telegram> t) { process_IRTHandlerUnknownFunktion(t); });
+ //       register_telegram_type(0xF0, F("IRTHandlerUnknownFunktion"), false, [&](std::shared_ptr<const Telegram> t) { process_IRTHandlerUnknownFunktion(t); });
 #if defined(ESP8266)
         bool RTCData = System::rtcMemory.begin();
         System::MyData *data = System::rtcMemory.getData();
@@ -257,8 +311,8 @@ void Boiler::register_mqtt_ha_config() {
         if (Helpers::hasValue(burnWorkMin_)) {
             Mqtt::register_mqtt_ha_sensor(nullptr, nullptr, F_(burnWorkMin), device_type(), "burnWorkMin", F_(min), nullptr);
         }
-        if (Helpers::hasValue(minuteTimer_)) {
-            Mqtt::register_mqtt_ha_sensor(nullptr, nullptr, F_(minuteTimer), device_type(), "minuteTimer", F_(min), F_(iconclockout));
+        if (Helpers::hasValue(periodTimer_)) {
+            Mqtt::register_mqtt_ha_sensor(nullptr, nullptr, F_(periodTimer), device_type(), "periodTimer", F_(min), F_(iconclockout));
         }
         if (emsesp::System::gasReading_>0) {
             Mqtt::register_mqtt_ha_sensor(nullptr, F_(mqtt_suffix_ww), F_(gasReading), device_type(), "gasReading", F_(meter3), F_(icongasmeter));
@@ -267,65 +321,63 @@ void Boiler::register_mqtt_ha_config() {
     }
     else if (mqtt_ha_config_ == 2) {
         // values should be sent if hasValues checks to false, but I see MQTT messages for non iRT sensors, so avoid sending it by tx-Mode
-        if (EMSbus::tx_mode() <= EMS_TXMODE_HW) {
-            if (Helpers::hasValue(heatingPumpMod_)) {
-                Mqtt::register_mqtt_ha_sensor(nullptr, nullptr, F_(heatingPumpMod), device_type(), "heatingPumpMod", F_(percent), F_(iconpercent));
-            }
-            if (Helpers::hasValue(heatingPump2Mod_)) {
-                Mqtt::register_mqtt_ha_sensor(nullptr, nullptr, F_(heatingPump2Mod), device_type(), "heatingPump2Mod", F_(percent), F_(iconpercent));
-            }
-            if (Helpers::hasValue(switchTemp_)) {
-                Mqtt::register_mqtt_ha_sensor(nullptr, nullptr, F_(switchTemp), device_type(), "switchTemp", F_(degrees), F_(iconwatertemp));
-            }
-            if (Helpers::hasValue(sysPress_)) {
-                Mqtt::register_mqtt_ha_sensor(nullptr, nullptr, F_(sysPress), device_type(), "sysPress", F_(bar), nullptr);
-            }
-            if (Helpers::hasValue(boilTemp_)) {
-                Mqtt::register_mqtt_ha_sensor(nullptr, nullptr, F_(boilTemp), device_type(), "boilTemp", F_(degrees), nullptr);
-            }
-            if (Helpers::hasValue(flameCurr_)) {
-                Mqtt::register_mqtt_ha_sensor(nullptr, nullptr, F_(flameCurr), device_type(), "flameCurr", F_(uA), F_(iconflash));
-            }
-            if (Helpers::hasValue(ignWork_)) {
-                Mqtt::register_mqtt_ha_sensor(nullptr, nullptr, F_(ignWork), device_type(), "ignWork", nullptr, F_(iconflash));
-            }
-            if (Helpers::hasValue(exhaustTemp_)) {
-                Mqtt::register_mqtt_ha_sensor(nullptr, nullptr, F_(exhaustTemp), device_type(), "exhaustTemp", F_(degrees), F_(iconwatertemp));
-            }
-            if (Helpers::hasValue(pumpModMax_)) {
-                Mqtt::register_mqtt_ha_sensor(nullptr, nullptr, F_(pumpModMax), device_type(), "pumpModMax", F_(percent), F_(iconpercent));
-            }
-            if (Helpers::hasValue(pumpModMin_)) {
-                Mqtt::register_mqtt_ha_sensor(nullptr, nullptr, F_(pumpModMin), device_type(), "pumpModMin", F_(percent), F_(iconpercent));
-            }
-            if (Helpers::hasValue(pumpDelay_)) {
-                Mqtt::register_mqtt_ha_sensor(nullptr, nullptr, F_(pumpDelay), device_type(), "pumpDelay", F_(min), nullptr);
-            }
-            if (Helpers::hasValue(heatWorkMin_)) {
-                Mqtt::register_mqtt_ha_sensor(nullptr, nullptr, F_(heatWorkMin), device_type(), "heatWorkMin", F_(min), nullptr);
-            }
-            if (Helpers::hasValue(UBAuptime_)) {
-                Mqtt::register_mqtt_ha_sensor(nullptr, nullptr, F_(UBAuptime), device_type(), "UBAuptime", F_(min), nullptr);
-            }
-            if (Helpers::hasValue(maintenanceMessage_)) {
-                Mqtt::register_mqtt_ha_sensor(nullptr, nullptr, F_(maintenanceMessage), device_type(), "maintenanceMessage", nullptr, nullptr);
-            }
-            if (Helpers::hasValue(maintenanceType_)) {
-                Mqtt::register_mqtt_ha_sensor(nullptr, nullptr, F_(maintenance), device_type(), "maintenance", nullptr, nullptr);
-            }
-            // optional etra values for date and time if not handled by maintenance
-            // if (Helpers::hasValue(maintenanceTime_)) {
-            //      Mqtt::register_mqtt_ha_sensor(nullptr, F_(mqtt_suffix_info), F_(maintenanceTime), device_type(), "maintenanceTime", F_(hours), nullptr);
-            // }
-            // if (strlen(maintenanceDate_) > 0) {
-            //      Mqtt::register_mqtt_ha_sensor(nullptr, F_(mqtt_suffix_info), F_(maintenanceDate), device_type(), "maintenanceDate", nullptr, nullptr);
-            // }
-            if (Helpers::hasValue(mixerTemp_)) {
-                Mqtt::register_mqtt_ha_sensor(nullptr, nullptr, F_(mixerTemp), device_type(), "mixerTemp", F_(degrees), nullptr);
-            }
-            if (Helpers::hasValue(tankMiddleTemp_)) {
-                Mqtt::register_mqtt_ha_sensor(nullptr, nullptr, F_(tankMiddleTemp), device_type(), "tankMiddleTemp", F_(degrees), nullptr);
-            }
+        if (Helpers::hasValue(heatingPumpMod_)) {
+            Mqtt::register_mqtt_ha_sensor(nullptr, nullptr, F_(heatingPumpMod), device_type(), "heatingPumpMod", F_(percent), F_(iconpercent));
+        }
+        if (Helpers::hasValue(heatingPump2Mod_)) {
+            Mqtt::register_mqtt_ha_sensor(nullptr, nullptr, F_(heatingPump2Mod), device_type(), "heatingPump2Mod", F_(percent), F_(iconpercent));
+        }
+        if (Helpers::hasValue(switchTemp_)) {
+            Mqtt::register_mqtt_ha_sensor(nullptr, nullptr, F_(switchTemp), device_type(), "switchTemp", F_(degrees), F_(iconwatertemp));
+        }
+        if (Helpers::hasValue(sysPress_)) {
+            Mqtt::register_mqtt_ha_sensor(nullptr, nullptr, F_(sysPress), device_type(), "sysPress", F_(bar), nullptr);
+        }
+        if (Helpers::hasValue(boilTemp_)) {
+            Mqtt::register_mqtt_ha_sensor(nullptr, nullptr, F_(boilTemp), device_type(), "boilTemp", F_(degrees), nullptr);
+        }
+        if (Helpers::hasValue(flameCurr_)) {
+            Mqtt::register_mqtt_ha_sensor(nullptr, nullptr, F_(flameCurr), device_type(), "flameCurr", F_(uA), F_(iconflash));
+        }
+        if (Helpers::hasValue(ignWork_)) {
+            Mqtt::register_mqtt_ha_sensor(nullptr, nullptr, F_(ignWork), device_type(), "ignWork", nullptr, F_(iconflash));
+        }
+        if (Helpers::hasValue(exhaustTemp_)) {
+            Mqtt::register_mqtt_ha_sensor(nullptr, nullptr, F_(exhaustTemp), device_type(), "exhaustTemp", F_(degrees), F_(iconwatertemp));
+        }
+        if (Helpers::hasValue(pumpModMax_)) {
+            Mqtt::register_mqtt_ha_sensor(nullptr, nullptr, F_(pumpModMax), device_type(), "pumpModMax", F_(percent), F_(iconpercent));
+        }
+        if (Helpers::hasValue(pumpModMin_)) {
+            Mqtt::register_mqtt_ha_sensor(nullptr, nullptr, F_(pumpModMin), device_type(), "pumpModMin", F_(percent), F_(iconpercent));
+        }
+        if (Helpers::hasValue(pumpDelay_)) {
+            Mqtt::register_mqtt_ha_sensor(nullptr, nullptr, F_(pumpDelay), device_type(), "pumpDelay", F_(min), nullptr);
+        }
+        if (Helpers::hasValue(heatWorkMin_)) {
+            Mqtt::register_mqtt_ha_sensor(nullptr, nullptr, F_(heatWorkMin), device_type(), "heatWorkMin", F_(min), nullptr);
+        }
+        if (Helpers::hasValue(UBAuptime_)) {
+            Mqtt::register_mqtt_ha_sensor(nullptr, nullptr, F_(UBAuptime), device_type(), "UBAuptime", F_(min), nullptr);
+        }
+        if (Helpers::hasValue(maintenanceMessage_)) {
+            Mqtt::register_mqtt_ha_sensor(nullptr, nullptr, F_(maintenanceMessage), device_type(), "maintenanceMessage", nullptr, nullptr);
+        }
+        if (Helpers::hasValue(maintenanceType_)) {
+            Mqtt::register_mqtt_ha_sensor(nullptr, nullptr, F_(maintenance), device_type(), "maintenance", nullptr, nullptr);
+        }
+        // optional etra values for date and time if not handled by maintenance
+        // if (Helpers::hasValue(maintenanceTime_)) {
+        //      Mqtt::register_mqtt_ha_sensor(nullptr, F_(mqtt_suffix_info), F_(maintenanceTime), device_type(), "maintenanceTime", F_(hours), nullptr);
+        // }
+        // if (strlen(maintenanceDate_) > 0) {
+        //      Mqtt::register_mqtt_ha_sensor(nullptr, F_(mqtt_suffix_info), F_(maintenanceDate), device_type(), "maintenanceDate", nullptr, nullptr);
+        // }
+        if (Helpers::hasValue(mixerTemp_)) {
+            Mqtt::register_mqtt_ha_sensor(nullptr, nullptr, F_(mixerTemp), device_type(), "mixerTemp", F_(degrees), nullptr);
+        }
+        if (Helpers::hasValue(tankMiddleTemp_)) {
+            Mqtt::register_mqtt_ha_sensor(nullptr, nullptr, F_(tankMiddleTemp), device_type(), "tankMiddleTemp", F_(degrees), nullptr);
         }
     }
     else if (mqtt_ha_config_ == 3) {
@@ -390,69 +442,87 @@ void Boiler::register_mqtt_ha_config_ww() {
     }
     else if (mqtt_ha_config_ww_ == 1) {
         // values should be sent if hasValues checks to false, but I see MQTT messages for non iRT sensors, so avoid sending it by tx-Mode
-        if (EMSbus::tx_mode() <= EMS_TXMODE_HW) {
-            if (Helpers::hasValue(wWDisinfectionTemp_)) {
-                Mqtt::register_mqtt_ha_sensor(nullptr, F_(mqtt_suffix_ww), F_(wWDisinfectionTemp), device_type(), "wWDisinfectionTemp", F_(degrees), F_(iconwatertemp));
-            }
-            if (Helpers::hasValue(wWType_)) {
-                Mqtt::register_mqtt_ha_sensor(nullptr, F_(mqtt_suffix_ww), F_(wWType), device_type(), "wWType", nullptr, nullptr);
-            }
-            if (Helpers::hasValue(wWChargeType_)) {
-                Mqtt::register_mqtt_ha_sensor(nullptr, F_(mqtt_suffix_ww), F_(wWChargeType), device_type(), "wWChargeType", nullptr, nullptr);
-            }
-            if (Helpers::hasValue(wWCircPump_)) {
-                Mqtt::register_mqtt_ha_sensor(nullptr, F_(mqtt_suffix_ww), F_(wWCircPump), device_type(), "wWCircPump", nullptr, nullptr);
-            }
-            if (Helpers::hasValue(wWCircPumpMode_)) {
-                Mqtt::register_mqtt_ha_sensor(nullptr, F_(mqtt_suffix_ww), F_(wWCircPumpMode), device_type(), "wWCircPumpMode", nullptr, nullptr);
-            }
-            if (Helpers::hasValue(wWCirc_)) {
-                Mqtt::register_mqtt_ha_sensor(nullptr, F_(mqtt_suffix_ww), F_(wWCirc), device_type(), "wWCirc", nullptr, nullptr);
-            }
-            if (Helpers::hasValue(wWCurTemp2_)) {
-                Mqtt::register_mqtt_ha_sensor(nullptr, F_(mqtt_suffix_ww), F_(wWCurTemp2), device_type(), "wWCurTemp2", F_(degrees), F_(iconwatertemp));
-            }
-            if (Helpers::hasValue(wWCurFlow_)) {
-                Mqtt::register_mqtt_ha_sensor(nullptr, F_(mqtt_suffix_ww), F_(wWCurFlow), device_type(), "wWCurFlow", F("l/min"), F_(iconwatertemp));
-            }
-            if (Helpers::hasValue(wWStorageTemp1_)) {
-                Mqtt::register_mqtt_ha_sensor(nullptr, F_(mqtt_suffix_ww), F_(wWStorageTemp1), device_type(), "wWStorageTemp1", F_(degrees), F_(iconwatertemp));
-            }
-            if (Helpers::hasValue(wWStorageTemp2_)) {
-                Mqtt::register_mqtt_ha_sensor(nullptr, F_(mqtt_suffix_ww), F_(wWStorageTemp2), device_type(), "wWStorageTemp2", F_(degrees), F_(iconwatertemp));
-            }
-            if (Helpers::hasValue(wWOneTime_)) {
-                Mqtt::register_mqtt_ha_sensor(nullptr, F_(mqtt_suffix_ww), F_(wWOneTime), device_type(), "wWOneTime", nullptr, nullptr);
-            }
-            if (Helpers::hasValue(wWDisinfecting_)) {
-                Mqtt::register_mqtt_ha_sensor(nullptr, F_(mqtt_suffix_ww), F_(wWDisinfecting), device_type(), "wWDisinfecting", nullptr, nullptr);
-            }
-            if (Helpers::hasValue(wWCharging_)) {
-                Mqtt::register_mqtt_ha_sensor(nullptr, F_(mqtt_suffix_ww), F_(wWCharging), device_type(), "wWCharging", nullptr, nullptr);
-            }
-            if (Helpers::hasValue(wWRecharging_)) {
-                Mqtt::register_mqtt_ha_sensor(nullptr, F_(mqtt_suffix_ww), F_(wWRecharging), device_type(), "wWRecharging", nullptr, nullptr);
-            }
-            if (Helpers::hasValue(wWTempOK_)) {
-                Mqtt::register_mqtt_ha_sensor(nullptr, F_(mqtt_suffix_ww), F_(wWTempOK), device_type(), "wWTempOK", nullptr, nullptr);
-            }
-            if (Helpers::hasValue(wWSetPumpPower_)) {
-                Mqtt::register_mqtt_ha_sensor(nullptr, F_(mqtt_suffix_ww), F_(wWSetPumpPower), device_type(), "wWSetPumpPower", F_(percent), F_(iconpump));
-            }
-            if (Helpers::hasValue(wWStarts_)) {
-                Mqtt::register_mqtt_ha_sensor(nullptr, F_(mqtt_suffix_ww), F_(wWStarts), device_type(), "wWStarts", nullptr, nullptr);
-            }
-            if (Helpers::hasValue(wWWorkM_)) {
-                Mqtt::register_mqtt_ha_sensor(nullptr, F_(mqtt_suffix_ww), F_(wWWorkM), device_type(), "wWWorkM", F_(min), nullptr);
-            }
-            if (Helpers::hasValue(wWMaxPower_)) {
-                Mqtt::register_mqtt_ha_sensor(nullptr, F_(mqtt_suffix_ww), F_(wWMaxPower), device_type(), "wWMaxPower", F_(percent), nullptr);
-            }
+        if (Helpers::hasValue(wWDisinfectionTemp_)) {
+            Mqtt::register_mqtt_ha_sensor(nullptr, F_(mqtt_suffix_ww), F_(wWDisinfectionTemp), device_type(), "wWDisinfectionTemp", F_(degrees), F_(iconwatertemp));
+        }
+        if (Helpers::hasValue(wWType_)) {
+            Mqtt::register_mqtt_ha_sensor(nullptr, F_(mqtt_suffix_ww), F_(wWType), device_type(), "wWType", nullptr, nullptr);
+        }
+        if (Helpers::hasValue(wWChargeType_)) {
+            Mqtt::register_mqtt_ha_sensor(nullptr, F_(mqtt_suffix_ww), F_(wWChargeType), device_type(), "wWChargeType", nullptr, nullptr);
+        }
+        if (Helpers::hasValue(wWCircPump_)) {
+            Mqtt::register_mqtt_ha_sensor(nullptr, F_(mqtt_suffix_ww), F_(wWCircPump), device_type(), "wWCircPump", nullptr, nullptr);
+        }
+        if (Helpers::hasValue(wWCircPumpMode_)) {
+            Mqtt::register_mqtt_ha_sensor(nullptr, F_(mqtt_suffix_ww), F_(wWCircPumpMode), device_type(), "wWCircPumpMode", nullptr, nullptr);
+        }
+        if (Helpers::hasValue(wWCirc_)) {
+            Mqtt::register_mqtt_ha_sensor(nullptr, F_(mqtt_suffix_ww), F_(wWCirc), device_type(), "wWCirc", nullptr, nullptr);
+        }
+        if (Helpers::hasValue(wWCurTemp2_)) {
+            Mqtt::register_mqtt_ha_sensor(nullptr, F_(mqtt_suffix_ww), F_(wWCurTemp2), device_type(), "wWCurTemp2", F_(degrees), F_(iconwatertemp));
+        }
+        if (Helpers::hasValue(wWCurFlow_)) {
+            Mqtt::register_mqtt_ha_sensor(nullptr, F_(mqtt_suffix_ww), F_(wWCurFlow), device_type(), "wWCurFlow", F("l/min"), F_(iconwatertemp));
+        }
+        if (Helpers::hasValue(wWStorageTemp1_)) {
+            Mqtt::register_mqtt_ha_sensor(nullptr, F_(mqtt_suffix_ww), F_(wWStorageTemp1), device_type(), "wWStorageTemp1", F_(degrees), F_(iconwatertemp));
+        }
+        if (Helpers::hasValue(wWStorageTemp2_)) {
+            Mqtt::register_mqtt_ha_sensor(nullptr, F_(mqtt_suffix_ww), F_(wWStorageTemp2), device_type(), "wWStorageTemp2", F_(degrees), F_(iconwatertemp));
+        }
+        if (Helpers::hasValue(wWOneTime_)) {
+            Mqtt::register_mqtt_ha_sensor(nullptr, F_(mqtt_suffix_ww), F_(wWOneTime), device_type(), "wWOneTime", nullptr, nullptr);
+        }
+        if (Helpers::hasValue(wWDisinfecting_)) {
+            Mqtt::register_mqtt_ha_sensor(nullptr, F_(mqtt_suffix_ww), F_(wWDisinfecting), device_type(), "wWDisinfecting", nullptr, nullptr);
+        }
+        if (Helpers::hasValue(wWCharging_)) {
+            Mqtt::register_mqtt_ha_sensor(nullptr, F_(mqtt_suffix_ww), F_(wWCharging), device_type(), "wWCharging", nullptr, nullptr);
+        }
+        if (Helpers::hasValue(wWRecharging_)) {
+            Mqtt::register_mqtt_ha_sensor(nullptr, F_(mqtt_suffix_ww), F_(wWRecharging), device_type(), "wWRecharging", nullptr, nullptr);
+        }
+        if (Helpers::hasValue(wWTempOK_)) {
+            Mqtt::register_mqtt_ha_sensor(nullptr, F_(mqtt_suffix_ww), F_(wWTempOK), device_type(), "wWTempOK", nullptr, nullptr);
+        }
+        if (Helpers::hasValue(wWSetPumpPower_)) {
+            Mqtt::register_mqtt_ha_sensor(nullptr, F_(mqtt_suffix_ww), F_(wWSetPumpPower), device_type(), "wWSetPumpPower", F_(percent), F_(iconpump));
+        }
+        if (Helpers::hasValue(wWStarts_)) {
+            Mqtt::register_mqtt_ha_sensor(nullptr, F_(mqtt_suffix_ww), F_(wWStarts), device_type(), "wWStarts", nullptr, nullptr);
+        }
+        if (Helpers::hasValue(wWWorkM_)) {
+            Mqtt::register_mqtt_ha_sensor(nullptr, F_(mqtt_suffix_ww), F_(wWWorkM), device_type(), "wWWorkM", F_(min), nullptr);
+        }
+        if (Helpers::hasValue(wWMaxPower_)) {
+            Mqtt::register_mqtt_ha_sensor(nullptr, F_(mqtt_suffix_ww), F_(wWMaxPower), device_type(), "wWMaxPower", F_(percent), nullptr);
         }
     }
     mqtt_ha_config_ww_++; // done
 }
 
+void Boiler::register_mqtt_ha_config_dbg() {
+    if (!Mqtt::connected()) {
+        return;
+    }
+
+    for (uint8_t i = mqtt_ha_config_dbg_*16; i < (mqtt_ha_config_dbg_+1)*16; i++) {
+        char s[10];
+        snprintf_P(s, sizeof(s), PSTR("debug%02x"), i+0x80);
+        if (Helpers::hasValue(debugtemp[i])) {
+            Mqtt::register_mqtt_ha_sensor(nullptr, nullptr, nullptr, device_type(), s, F_(degrees), nullptr);
+        }
+        else if (Helpers::hasValue(debugpercent[i])) {
+            Mqtt::register_mqtt_ha_sensor(nullptr, nullptr, nullptr, device_type(), s, F_(percent), nullptr);
+        }
+        else if (Helpers::hasValue(debugvalues[i])) {
+            Mqtt::register_mqtt_ha_sensor(nullptr, nullptr, nullptr, device_type(), s, nullptr, nullptr);
+        }
+    }
+    mqtt_ha_config_dbg_++; // done
+}
 // send stuff to the Web UI
 void Boiler::device_info_web(JsonArray & root, uint8_t & part) {
     // fetch the values into a JSON document
@@ -505,7 +575,7 @@ void Boiler::device_info_web(JsonArray & root, uint8_t & part) {
         create_value_json(root, F("heatWorkMin"), nullptr, F_(heatWorkMin), nullptr, json);
         create_value_json(root, F("UBAuptime"), nullptr, F_(UBAuptime), nullptr, json);
         // optional in info
-        create_value_json(root, F("minuteTimer"), nullptr, F_(minuteTimer), F_(min), json);
+        create_value_json(root, F("periodTimer"), nullptr, F_(periodTimer), F_(min), json);
         create_value_json(root, F("gasReading"), nullptr, F_(gasReading), F_(meter3), json);
         create_value_json(root, F("maintenanceMessage"), nullptr, F_(maintenanceMessage), nullptr, json);
         create_value_json(root, F("maintenance"), nullptr, F_(maintenance), (maintenanceType_ == 1) ? F_(hours) : nullptr, json);
@@ -719,6 +789,20 @@ bool Boiler::export_values_main(JsonObject & json, const bool textformat) {
         json["selFlowTemp"] = selFlowTemp_;
     }
 
+    for (uint8_t i = 0; i < 128; i++) {
+        char s[10];
+        snprintf_P(s, sizeof(s), PSTR("debug%02x"), i+0x80);
+        if (Helpers::hasValue(debugtemp[i])) {
+            json[s] = (float)debugtemp[i] / 100;
+        }
+        else if (Helpers::hasValue(debugpercent[i])) {
+            json[s] = debugpercent[i];
+        }
+        else if (Helpers::hasValue(debugvalues[i])) {
+            json[s] = (uint8_t)debugvalues[i];
+        }
+    }
+
     // Burner selected max power %
     if (Helpers::hasValue(selBurnPow_)) {
         json["selBurnPow"] = selBurnPow_;
@@ -874,8 +958,8 @@ bool Boiler::export_values_main(JsonObject & json, const bool textformat) {
     Helpers::json_time(json, "UBAuptime", UBAuptime_, textformat);
 
     // minute timer
-    if (Helpers::hasValue(minuteTimer_)) {
-        json["minuteTimer"] = minuteTimer_;
+    if (Helpers::hasValue(periodTimer_)) {
+        json["periodTimer"] = periodTimer_;
     }
 
     // gas meter reading
@@ -1052,6 +1136,7 @@ void Boiler::publish_values(JsonObject & json, bool force) {
         if (force) {
             mqtt_ha_config_    = 0;
             mqtt_ha_config_ww_ = 0;
+            mqtt_ha_config_dbg_= 0;
         }
 
         // register ww in next cycle if both unregistered
@@ -1063,10 +1148,14 @@ void Boiler::publish_values(JsonObject & json, bool force) {
             LOG_DEBUG(F("[DEBUG] register MQTT HA config ww"));
             register_mqtt_ha_config_ww();
             return;
+        } else if ((mqtt_ha_config_dbg_ < 8) && uuid::get_uptime_sec() > (EMSESP::tx_delay() + 120u+(uint8_t)(mqtt_ha_config_dbg_*10))) {
+            LOG_DEBUG(F("[DEBUG] register MQTT HA config debug"));
+            register_mqtt_ha_config_dbg();
+            return;
         }
     }
 
-    DynamicJsonDocument doc(EMSESP_MAX_JSON_SIZE_MEDIUM);
+    DynamicJsonDocument doc(EMSESP_MAX_JSON_SIZE_MAX_DYN);
     //StaticJsonDocument<EMSESP_MAX_JSON_SIZE_MEDIUM> doc;
     JsonObject                                     json_data = doc.to<JsonObject>();
     if (export_values_main(json_data)) {
@@ -1219,7 +1308,12 @@ void Boiler::process_IRTSetBurnerPower(std::shared_ptr<const Telegram> telegram)
 }
 
 void Boiler::process_IRTHandlerUnknownFunktion(std::shared_ptr<const Telegram> telegram)  // unknown funktions
-{}
+{
+    uint8_t index,temp;
+    telegram->read_value(index, 0);
+    changed_ |= telegram->read_value(temp, 4);
+    debugvalues[index-0x80] = temp;
+}
    
 void Boiler::process_IRTGetMaxWarmWater(std::shared_ptr<const Telegram> telegram)  // 0x81
 {
@@ -1263,7 +1357,7 @@ void Boiler::process_IRTGetActBurnerPower(std::shared_ptr<const Telegram> telegr
     if ((curBurnPow_raw==0xA0) && ((heatingActive_==0) || (heatingActive_ == EMS_VALUE_BOOL_NOTSET)))
         curBurnPow_ = 0;
     else
-        curBurnPow_ = (curBurnPow_raw / 4) + 30;
+        curBurnPow_ = (curBurnPow_raw +120) / 3.643;
     EMSESP::cur_burn_pow(curBurnPow_); // let EMS-ESP know, used in the System
 
 }
@@ -1272,7 +1366,8 @@ void Boiler::process_IRTGetMaxBurnerPower(std::shared_ptr<const Telegram> telegr
     changed_ |= telegram->read_value(burnMaxPower_raw, 4);	
     burnMaxPower_=(uint8_t)((burnMaxPower_raw*100)/255);
 }
-void Boiler::process_IRTGetOutdoorTemp(std::shared_ptr<const Telegram> telegram) {
+void Boiler::process_IRTGetOutdoorTemp(std::shared_ptr<const Telegram> telegram) // 0x8A
+{
 /*
  * IRTOutdoorTemp - type 0x8A - external temperature iRT
 	 * External thermo sensor
@@ -1288,6 +1383,17 @@ void Boiler::process_IRTGetOutdoorTemp(std::shared_ptr<const Telegram> telegram)
     outdoorTemp_ = (int32_t)(197450-outdoorTemp_raw*1000)/275;
  }
 
+void Boiler::process_IRTGetWwTemp2(std::shared_ptr<const Telegram> telegram)  // 0x8B
+{
+    changed_ |= telegram->read_value(wWCurTemp2_raw, 4);	
+    wWCurTemp2_ = (268-wWCurTemp2_raw)/0.255-1;
+}
+
+void Boiler::process_IRTGetBoilTemp(std::shared_ptr<const Telegram> telegram)  // 0x8C
+{
+    changed_ |= telegram->read_value(boilTemp_raw, 4);	
+    boilTemp_ = (240-boilTemp_raw)*5;
+}
 
 void Boiler::process_IRTGetMaxFlowTemp(std::shared_ptr<const Telegram> telegram)  // 0x90
 {
@@ -1295,11 +1401,95 @@ void Boiler::process_IRTGetMaxFlowTemp(std::shared_ptr<const Telegram> telegram)
     // temp/4.25+35
     heatingTemp_= ((uint32_t)heatingTemp_raw*100+14875)/425;
 }
+
+void Boiler::process_IRTCommand91(std::shared_ptr<const Telegram> telegram)  // 0x91
+{
+    changed_ |= telegram->read_value(command91_raw, 4);	
+    debugtemp[0x91 - 0x80] = command91_raw * 100;
+}
+
 void Boiler::process_IRTGetPumpStatus(std::shared_ptr<const Telegram> telegram)  // 0x93
 {
     changed_ |= telegram->read_value(heatingPump_raw, 4);
     heatingPump_ = !heatingPump_raw;
 }
+
+void Boiler::process_IRTGetActBurnerPower_2(std::shared_ptr<const Telegram> telegram)  // 0x95
+{
+    changed_ |= telegram->read_value(curBurnPow_2_raw, 4);	
+    if ((curBurnPow_2_raw==0xAA) && ((heatingActive_==0) || (heatingActive_ == EMS_VALUE_BOOL_NOTSET)))
+        curBurnPow_2_ = 0;
+    else
+        curBurnPow_2_ = ((uint16_t)curBurnPow_2_raw + 120)/ 3.643;
+    debugpercent[0x95 - 0x80]  = curBurnPow_2_;
+}
+
+void Boiler::process_IRTCommand9B(std::shared_ptr<const Telegram> telegram)  // 0x9B
+{
+    changed_ |= telegram->read_value(command9B_raw, 4);	
+}
+
+void Boiler::process_IRTCommand9C(std::shared_ptr<const Telegram> telegram)  // 0x9C
+{
+    uint8_t temp = command9C_raw;
+    changed_ |= telegram->read_value(command9C_raw, 4);	
+    if (((temp-command9C_raw) > 200) && (debugtemp[0x9C - 0x80] > (command9B_raw*256 + command9C_raw)))
+        command9B_raw++;
+    else if (((command9C_raw-temp) > 200) && (debugtemp[0x9C - 0x80] < (command9B_raw*256 + command9C_raw)))
+        command9B_raw--;
+    debugtemp[0x9C - 0x80] = command9B_raw*256 + command9C_raw;
+}
+
+void Boiler::process_IRTFineFlow1(std::shared_ptr<const Telegram> telegram)  // 0x9D
+{
+    changed_ |= telegram->read_value(fineFlowTemp1_raw, 4);	
+}
+
+void Boiler::process_IRTFineFlow2(std::shared_ptr<const Telegram> telegram)  // 0x9E
+{
+    uint8_t temp = fineFlowTemp2_raw;
+    changed_ |= telegram->read_value(fineFlowTemp2_raw, 4);	
+    if (((temp-fineFlowTemp2_raw) > 200) && (fineFlowTemp_ > (fineFlowTemp1_raw*256 + fineFlowTemp2_raw)))
+        fineFlowTemp1_raw++;
+    else if (((fineFlowTemp2_raw-temp) > 200) && (fineFlowTemp_ < (fineFlowTemp1_raw*256 + fineFlowTemp2_raw)))
+        fineFlowTemp1_raw--;
+    fineFlowTemp_ = fineFlowTemp1_raw*256 + fineFlowTemp2_raw;
+    debugtemp[0x9E - 0x80] = fineFlowTemp_;
+}
+
+void Boiler::process_IRTFineRet1(std::shared_ptr<const Telegram> telegram)  // 0x9F
+{
+    changed_ |= telegram->read_value(fineRetTemp1_raw, 4);	
+}
+
+void Boiler::process_IRTFineRet2(std::shared_ptr<const Telegram> telegram)  // 0xA0
+{
+    uint8_t temp = fineRetTemp2_raw;
+    changed_ |= telegram->read_value(fineRetTemp2_raw, 4);	
+    if (((temp-fineRetTemp2_raw) > 200) && (fineRetTemp_ > (fineRetTemp1_raw*256 + fineRetTemp2_raw)))
+        fineRetTemp1_raw++;
+    else if (((fineRetTemp2_raw-temp) > 200) && (fineRetTemp_ < (fineRetTemp1_raw*256 + fineRetTemp2_raw)))
+        fineRetTemp1_raw--;
+    fineRetTemp_ = fineRetTemp1_raw*256 + fineRetTemp2_raw;
+    debugtemp[0xA0 - 0x80] = fineRetTemp_;
+}
+
+void Boiler::process_IRTCommandA1(std::shared_ptr<const Telegram> telegram)  // 0xA1
+{
+    changed_ |= telegram->read_value(commandA1_raw, 4);	
+}
+
+void Boiler::process_IRTCommandA2(std::shared_ptr<const Telegram> telegram)  // 0xA2
+{
+    uint8_t temp = commandA2_raw;
+    changed_ |= telegram->read_value(commandA2_raw, 4);	
+    if (((temp-commandA2_raw) > 200) && (debugtemp[0xA2 - 0x80] > (commandA1_raw*256 + commandA2_raw)))
+        commandA1_raw++;
+    else if (((commandA2_raw -temp) > 200) && (debugtemp[0xA2 - 0x80] < (commandA1_raw*256 + commandA2_raw)))
+        commandA1_raw--;
+    debugtemp[0xA2 - 0x80] = (commandA1_raw*256 + commandA2_raw);
+}
+
 char irt_getDisplayCode1(uint8_t status) {
 
 	/* n d1 d1 d1 d1 n n n */
@@ -1399,9 +1589,9 @@ void Boiler::process_IRTGetBurnerStarts(std::shared_ptr<const Telegram> telegram
     burnStarts_ = burnStarts_raw;
 }
 
-void Boiler::process_IRTGetMinuteTimer(std::shared_ptr<const Telegram> telegram)  // 0xC9
+void Boiler::process_IRTGetPeriodTimer(std::shared_ptr<const Telegram> telegram)  // 0xC9
 {
-    changed_ |= telegram->read_value(minuteTimer_, 4);
+    changed_ |= telegram->read_value(periodTimer_, 4);
 }
 
 void Boiler::process_IRTGetMaxBurnerPowerSetting(std::shared_ptr<const Telegram> telegram)  // 0xDE
@@ -1840,6 +2030,8 @@ bool Boiler::set_heating_activated(const char * value, const int8_t id) {
     else {
         heatingActivated_ = v ? 0x01 : 0;
         write_command(0x07, 0, v ? 0xFF: 0, 0x07);
+        EMSESP::send_raw_telegram("0B 08 73 00 73 52 25 43");
+        EMSESP::send_raw_telegram("0B 08 78 00 78 07 FF A1");
         write_command(0x01, 0, v ? irt_convert_real_temp_to_raw(38): 0, 0x01);
     }
 #if defined(ESP8266)

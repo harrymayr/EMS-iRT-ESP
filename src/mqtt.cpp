@@ -886,7 +886,10 @@ void Mqtt::register_mqtt_ha_sensor(const char *                prefix,
 
     // name
     char new_name[50];
-    snprintf_P(new_name, sizeof(new_name), PSTR("%s %s %s"), mqtt_base_.c_str(), device_name, uuid::read_flash_string(name).c_str());
+    if (name != nullptr) 
+        snprintf_P(new_name, sizeof(new_name), PSTR("%s %s %s"), mqtt_base_.c_str(), device_name, uuid::read_flash_string(name).c_str());
+    else
+        snprintf_P(new_name, sizeof(new_name), PSTR("%s %s %s"), mqtt_base_.c_str(), device_name, entity);
     new_name[0] = toupper(new_name[0]); // capitalize first letter
 
     if (device_type == EMSdevice::HEARTBEAT){
